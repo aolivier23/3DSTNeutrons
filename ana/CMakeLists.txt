@@ -10,7 +10,7 @@ include_directories( "${UTIL_DIR}/src" )
 link_directories( "${UTIL_DIR}/lib" )
 
 #Add libraries of plugins
-add_library( ana SHARED Analyzer.cpp FSNeutrons.cpp )
+add_library( ana SHARED Analyzer.cpp FSNeutrons.cpp NeutronCand.cpp )
 target_link_libraries( ana persistency edepsim ${ROOT_LIBRARIES} Util_ROOT_Base)
 install( TARGETS ana DESTINATION lib )
-install( FILES Analyzer.h FSNeutrons.h DESTINATION include/ana )
+install( FILES Analyzer.h FSNeutrons.h NeutronCand.h DESTINATION include/ana )

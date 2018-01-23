@@ -13,15 +13,17 @@ namespace ana
 {
   FSNeutrons::FSNeutrons(const plgn::Analyzer::Config& config): plgn::Analyzer(config)
   {
-    fNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "Energy Spectrum of Final State Neutrons;Energy [MeV];Events", 
-                                             300, 0, 2000);
+    fNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "Energies of All FS Neutrons;Energy [MeV];FS Neutrons", 300, 0, 2000);
   }
 
   void FSNeutrons::DoAnalyze()
-  {
-    for(const auto& traj: fEvent->Trajectories)
+  {  
+    for(const auto& vertex: fEvent->Primaries)
     {
-      if(traj.PDGCode == 2112) fNeutronEnergy->Fill(traj.InitialMomentum.E());
+      for(const auto& part: vertex.Particles)
+      {
+        if(part.PDGCode == 2112) fNeutronEnergy->Fill(part.Momentum.E());
+      }
     }
   }
 

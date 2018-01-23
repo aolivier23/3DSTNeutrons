@@ -45,6 +45,12 @@ namespace
     return nullptr;
   }
 
+  std::ostream& operator <<(std::ostream& os, const TVector3& vec)
+  {
+    os << "(" << vec.X() << ", " << vec.Y() << ", " << vec.Z() << ")";
+    return os;
+  }
+
   //Return a TVector3 in a different coordinate system
   TVector3 InLocal(const TVector3& pos, TGeoMatrix* mat)
   {
@@ -52,6 +58,15 @@ namespace
     pos.GetXYZ(master);
     mat->MasterToLocal(master, local);
     return TVector3(local[0], local[1], local[2]);
+  }
+
+  //The opposite of InLocal
+  TVector3 InGlobal(const TVector3& pos, TGeoMatrix* mat)
+  {
+    double master[3] = {}, local[3] = {};
+    pos.GetXYZ(local);
+    mat->LocalToMaster(local, master);
+    return TVector3(master[0], master[1], master[2]);
   }
 
   double DistFromInside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
@@ -125,22 +140,29 @@ namespace reco
         if(mat == nullptr) throw util::exception("Volume Not Found") << "Could not find transformation matrix for volume " << det.first << "\n";
         
         const auto start = ::InLocal(seed.Start.Vect(), mat);
+        std::cout << "seed.Start is " << seed.Start.Vect() << ".  That is " << start << " in the local frame.\n";
         const auto stop = ::InLocal(seed.Stop.Vect(), mat);
+        std::cout << "seed.Stop is " << seed.Stop.Vect() << ".  That is " << stop << " in the local frame.\n";
         const double length = (stop-start).Mag();
 
         //Loop over fWidth-sized cubes that contain some energy from seed.
-        for(double boxX = (((int)(start.X()/fWidth))+0.5)*fWidth; boxX < stop.X(); boxX += fWidth)
+        //TODO: Most seeds aren't making it into this loop at all.  I think I see why my end condition 
+        //      only includes MCHits where the energy deposit completely leaves the box.   
+        for(double boxX = (((int)(start.X()/fWidth))+0.5)*fWidth; boxX < (((int)(stop.X()/fWidth))+1.0)*fWidth; boxX += fWidth)
         {
-          for(double boxY = (((int)(start.Y()/fWidth))+0.5)*fWidth; boxY < stop.Y(); boxY += fWidth)
+          for(double boxY = (((int)(start.Y()/fWidth))+0.5)*fWidth; boxY < (((int)(stop.Y()/fWidth))+1.0)*fWidth; boxY += fWidth)
           {
-            for(double boxZ = (((int)(start.Z()/fWidth))+0.5)*fWidth; boxZ < stop.Z(); boxZ += fWidth)
+            for(double boxZ = (((int)(start.Z()/fWidth))+0.5)*fWidth; boxZ < (((int)(stop.Z()/fWidth))+1.0)*fWidth; boxZ += fWidth)
             {
               TVector3 boxCenter(boxX, boxY, boxZ);
+              std::cout << "Creating an MCHit at " << boxCenter << " in the local frame.\n";
                 
               pers::MCHit hit;
               hit.Width = fWidth;
               hit.TrackIDs.push_back(seed.PrimaryId);
-              hit.Position = TLorentzVector(boxCenter.X(), boxCenter.Y(), boxCenter.Z(), seed.Start.T());
+              const auto global = ::InGlobal(boxCenter, mat);
+              hit.Position = TLorentzVector(global.X(), global.Y(), global.Z(), seed.Start.T());
+              std::cout << "The new MCHit is at " << global << " in the global frame.\n";
 
               //Figure out how much of seed's energy was deposited in this box.
               const double dist = ::DistFromInside(hitBox, start, stop, boxCenter);

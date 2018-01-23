@@ -3,6 +3,8 @@ set(EDEP_DIR $ENV{EDEP_ROOT}/$ENV{EDEP_TARGET})
 include_directories( "${EDEP_DIR}/include/edep-sim" )
 link_directories( "${EDEP_DIR}/lib" )
 
+message("Getting edepsim includes from ${EDEP_DIR}/lib")
+
 # The following CMake code taken directly from Clark McGrew's edepsim since 
 # he seems to have done an awesome job.  
 # Make sure the current directories are available for the root
