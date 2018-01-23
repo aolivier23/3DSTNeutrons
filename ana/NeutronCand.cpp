@@ -49,33 +49,38 @@ namespace ana
     std::map<int, int> TrackIDsToFS; //Map from TrackIDs to FS neutron
     const auto trajs = fEvent->Trajectories;
 
+    std::cout << "Looping over " << fEvent->Primaries.size() << " primaries.\n";
     for(const auto& vertex: fEvent->Primaries)
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112 && part.Momentum.E() < fMinEnergy)
+        std::cout << "Looking at TrackID " << part.TrackId << " which is a " << part.Name << "\n";
+        if(part.PDGCode == 2112 && part.Momentum.E() > fMinEnergy)
         {
           std::vector<int> descend;
           Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
           for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId;
+          std::cout << "Entered " << descend.size() << " descendants for TrackID " << part.TrackId << "\n";
         }
       }
     }
 
     fNCand->Fill(fClusters.GetSize());
 
-    std::map<int, std::vector<pers::MCCluster>> FSToCands; //Map of FS neutron to the candidates it is responsible for
+    /*std::map<int, std::vector<pers::MCCluster>> FSToCands; //Map of FS neutron to the candidates it is responsible for
     for(const auto& cand: fClusters)
     {
       fCandidateEnergy->Fill(cand.Energy);
      
       std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
-      for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]);
+      for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); //TODO: The lookup of TrackIDsToFS is giving a default-constructed int here
       
       for(const int neutronID: FSIds) //For each FS neutron TrackID
       {
         FSToCands[neutronID].push_back(cand);
         const auto& neutron = trajs[neutronID];
+        std::cout << "neutronID is " << neutronID << "\n";
+
         fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E());
 
         //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
@@ -99,7 +104,7 @@ namespace ana
                                                                                           < (second.Position-FSPos).Vect().Mag2();
                                                                                  });
       fDistFromVtx->Fill((closest->Position-FSPos).Vect().Mag());
-    }
+    }*/
   }
 
   REGISTER_PLUGIN(NeutronCand, plgn::Analyzer);

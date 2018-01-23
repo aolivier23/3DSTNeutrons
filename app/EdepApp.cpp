@@ -146,7 +146,8 @@ int main(int argc, char** argv)
         //If something was reconstructed, write to the output tree
         if(foundReco) 
         {
-          //inTree->GetEntry(entry); 
+          inTree->GetEntry(entry); //TODO: Why does this work when SetBranchStatus() doesn't?  mysteriesOfTheUniverse.push_back(this)
+          //inTree->SetBranchStatus("*", 1); //Make sure everything is processed so that everything gets saved, even if it isn't used.
           outTree->Fill();
         }
 
