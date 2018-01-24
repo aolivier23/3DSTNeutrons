@@ -13,7 +13,7 @@ namespace ana
 {
   FSNeutrons::FSNeutrons(const plgn::Analyzer::Config& config): plgn::Analyzer(config)
   {
-    fNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "Energies of All FS Neutrons;Energy [MeV];FS Neutrons", 300, 0, 2000);
+    fNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "KE of All FS Neutrons;Energy [MeV];FS Neutrons", 200, 0, 3000);
   }
 
   void FSNeutrons::DoAnalyze()
@@ -22,7 +22,7 @@ namespace ana
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112) fNeutronEnergy->Fill(part.Momentum.E());
+        if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > 2.) fNeutronEnergy->Fill(part.Momentum.E() - part.Momentum.Mag());
       }
     }
   }

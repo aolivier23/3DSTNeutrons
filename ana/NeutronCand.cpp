@@ -35,10 +35,10 @@ namespace ana
     fCandPerNeutron = config.File->make<TH1D>("CandPerNeutron", "Number of Candidates per FS Neutron;Neutron Candidates;Neutrons",
                                               50, 0, 20);
     fNCand = config.File->make<TH1I>("NCand", "Number of Candidates per Event;Neutron Candidates;Events", 20, 0, 20);
-    fFSNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "Energies of FS Neutrons that Produced Candidates;Energy [MeV];Events",
+    fFSNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "KE of FS Neutrons that Produced Candidates;Energy [MeV];Events",
                                                200, 0, 3000);
-    fCauseEnergyVsCandEnergy = config.File->make<TH2D>("CauseEnergyVsCandEnergy", "Energies of FS Neutrons versus Energies of their Candidates;Candidate Energy [MeV];"
-                                                                                  "FS Neutron Energy [MeV];FS Neutrons", 150, 0, 1000, 200, 0, 3000);
+    fCauseEnergyVsCandEnergy = config.File->make<TH2D>("CauseEnergyVsCandEnergy", "KE of FS Neutrons versus Energies of their Candidates;Candidate Energy [MeV];"
+                                                                                  "FS Neutron KE [MeV];FS Neutrons", 150, 0, 1000, 200, 0, 3000);
     fCandAngleWRTCause = config.File->make<TH1D>("CandAngleWRTCause", "Angle of Candidate w.r.t. InitialMomentum of FS Neutron;"
                                                                       "#Delta#theta_{Cand} [rad.];Candidates", 200, 0., 3.1415926535897932384626433832);
     fDistFromVtx = config.File->make<TH1D>("DistFromVertex", "Distance of Closest Candidate to Vertex per FS Neutron;Distance [mm];FS Neutrons", 350, 0, 5000);
@@ -53,7 +53,7 @@ namespace ana
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112 && part.Momentum.E() > fMinEnergy)
+        if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
         {
           std::vector<int> descend;
           Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
@@ -77,20 +77,18 @@ namespace ana
         FSToCands[neutronID].push_back(cand);
         const auto& neutron = trajs[neutronID];
 
-        fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E());
+        fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
 
         //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
-        std::cout << "Candidate z position is " << cand.Position.Z() << "\n";
-        std::cout << "FS neutron starting point (= vertex?) z position is " << neutron.Points[0].Position.Z() << "\n";
         const auto candVec = (cand.Position-neutron.Points[0].Position).Vect();
 
         fCandAngleWRTCause->Fill(std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit())));
       }
     }
 
-    fCandPerNeutron->Fill(fClusters.GetSize()/FSToCands.size());
+    //fCandPerNeutron->Fill(fClusters.GetSize()/FSToCands.size());
 
-    for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E());
+    for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag());
 
     //Now, look for all of the candidates for each FS neutron.  
     for(const auto& FS: FSToCands) 
@@ -102,6 +100,7 @@ namespace ana
                                                                                           < (second.Position-FSPos).Vect().Mag2();
                                                                                  });
       fDistFromVtx->Fill((closest->Position-FSPos).Vect().Mag());
+      fCandPerNeutron->Fill(FS.second.size());
     }
   }
 
