@@ -15,6 +15,8 @@ namespace reco
 
   bool AdjacentClusters::DoReconstruct()
   {
+    fClusters.clear(); //Remove clusters from previous events!
+
     //Make my own copy of the vector of hits as a std::list so I can remove the ones I use
     std::list<pers::MCHit> hits(fHits.begin(), fHits.end());
 

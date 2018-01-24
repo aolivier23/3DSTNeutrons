@@ -54,6 +54,8 @@ namespace reco
 
   bool MergedClusters::DoReconstruct()
   {
+    fClusters.clear(); //Clear out the old clusters from last time!
+
     //Make my own copy of the vector of hits as a std::list so I can remove the ones I use
     std::vector<std::pair<pers::MCCluster, std::vector<pers::MCHit>>> clusterToHit;
 
@@ -97,12 +99,14 @@ namespace reco
         cluster.Energy += outerHit.Energy;
         
         cluster.TrackIDs.insert(cluster.TrackIDs.end(), outerHit.TrackIDs.begin(), outerHit.TrackIDs.end());   
+        neighbor->second.push_back(outerHit);
       }
       else //Seed a new MCCluster
       {
         pers::MCCluster seed;
         seed.Energy = outerHit.Energy;
         seed.TrackIDs = outerHit.TrackIDs;
+        seed.Position = outerHit.Position;
         clusterToHit.push_back(std::make_pair(seed, std::vector<pers::MCHit>({outerHit})));
       }
     }
