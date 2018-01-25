@@ -106,7 +106,7 @@ namespace reco
         pers::MCCluster seed;
         seed.Energy = outerHit.Energy;
         seed.TrackIDs = outerHit.TrackIDs;
-        seed.Position = outerHit.Position;
+        //seed.Position = outerHit.Position;
         clusterToHit.push_back(std::make_pair(seed, std::vector<pers::MCHit>({outerHit})));
       }
     }
@@ -115,6 +115,12 @@ namespace reco
     for(auto& pair: clusterToHit)
     {
       auto& clust = pair.first;
+
+      //Set cluster's position to the position of the first MCHit it conatins in time.  
+      clust.Position = std::min_element(pair.second.begin(), pair.second.end(), [](const auto& first, const auto& second)
+                                                                                { return first.Position.T() < second.Position.T(); })->Position;
+
+      //Now that I know clust's starting position, find its size.
       const auto xExtrema = std::minmax_element(pair.second.begin(), pair.second.end(), [&clust](const auto& first, const auto& second)
                                                                                         {
                                                                                           return   (first.Position-clust.Position).X() 
