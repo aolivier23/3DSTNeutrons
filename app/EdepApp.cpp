@@ -122,7 +122,6 @@ int main(int argc, char** argv)
       else std::cerr << "Could not find Analyzer algorithm " << ana << "\n";
     }
 
-    size_t evtNum = 0;
     for(const auto& file: inFiles)
     {
       inFile = TFile::Open(file.c_str(), "READ");
@@ -155,8 +154,7 @@ int main(int argc, char** argv)
         for(const auto& ana: anaAlgs) ana->Analyze();
 
         if(entry%100 == 0 || entry < 100) std::cout << "Finished processing event " << entry << "\n";
-        ++evtNum;
-        if(evtNum > options.Get<size_t>("--n-events")) break; //TODO: Remove this when I'm done debugging
+        if(entry > options.Get<size_t>("--n-events")) break; //TODO: Remove this when I'm done debugging
 
         //TODO: Use gGeoManager in plugins for now, but consider retrieving TGeoManager from current file instead.  
       }

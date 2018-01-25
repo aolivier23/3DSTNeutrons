@@ -31,7 +31,7 @@ namespace reco
                     //with less than this amount of KE are not interesting to me.   
 
       //Internal functions
-      void Descendants(const int& parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const;
+      void Descendants(const int parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const;
   };
 }
 

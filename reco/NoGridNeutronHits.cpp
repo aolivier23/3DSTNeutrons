@@ -315,15 +315,37 @@ namespace reco
     //Next, find all TG4HitSegments that are descended from an interesting FS particle.  
     for(const auto& det: fEvent->SegmentDetectors) //Loop over sensitive detectors
     {
-      //TODO: Decide on a threshold of when to use this algorithm?  
-      //      Only sort energy deposits in this detector. 
-      ::XHemisphere neutGeom(center, 2400, 1), otherGeom(center, 2400, 1); //Split based on the first vertex in this event.  
+      //Decide on a threshold of when to use this algorithm?  
+      //Only sort energy deposits in this detector. 
+      //TODO: Come up with a reasoning for these thresholds
+      size_t subdiv = 0;
+      if(det.second.size() > 1e2) subdiv = 1;
+      if(det.second.size() > 1e3) subdiv = 2;
+      if(det.second.size() > 1e4) subdiv = 3;
+
+      //TODO: Only use neutGeom if there are lots of energy deposits from FS neutrons? 
+      ::XHemisphere neutGeom(center, 2400, subdiv), otherGeom(center, 2400, subdiv); //Split based on the first vertex in this event.  
+
+      //Get geometry information about the detector of interest
+      //TODO: This is specfic to the files I am processing right now!
+      const std::string fiducial = "volA3DST_PV";
+      auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
+      auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
 
       //std::list<TG4HitSegment> neutSegs, others; //Sort HitSegments into "interesting" and "others"
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
-        if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutGeom[seg].push_back(seg);
-        else otherGeom[seg].push_back(seg);
+        //Simple fiducial cut.  Should really look at how much of deposit is inside the fiducial volume or something.  
+        //Ideally, I'll just get edepsim to do this for me in the future by creating a volume for each scintillator block.  
+        const auto local = ::InLocal((seg.Start.Vect()+seg.Stop.Vect())*0.5, mat);
+        double arr[] = {local.X(), local.Y(), local.Z()};
+        if(shape->Contains(arr))
+        {
+          if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutGeom[seg].push_back(seg);
+          else otherGeom[seg].push_back(seg);
+        }
+        else if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) 
+          std::cout << "A neutron hit was thrown out because it was outside the fiducial.\n";
       }
 
       //Form MCHits from interesting TG4HitSegments
@@ -339,13 +361,6 @@ namespace reco
         auto& others = otherGeom[seed]; //TODO: If seed is in Both, make sure I get everything.  I will probably have to define some kind of 
                                         //      meta-list structure so that I can do the remove operations later in this loop.
 
-        //Get geometry information about this detector
-        auto mat = ::findMat(fGeo->FindNode(seed.Start.X(), seed.Start.Y(), seed.Start.Z())->GetVolume()->GetName(), *(fGeo->GetTopNode()));
-        if(mat == nullptr) throw util::exception("Volume Not Found") << "Could not find transformation matrix for volume " << det.first << "\n";
-        
-        const auto start = ::InLocal(seed.Start.Vect(), mat);
-        const auto stop = ::InLocal(seed.Stop.Vect(), mat);
-
         pers::MCHit hit;
         hit.Energy = seed.EnergyDeposit;
         hit.TrackIDs.push_back(seed.PrimaryId);
@@ -356,6 +371,8 @@ namespace reco
 
         neutSegs.erase(neutSegs.begin()); //remove the seed from the list of neutSegs so that it is not double-counted later.
         //Now, try to never use seed again.  It's probably safe anyway if I copied it correctly, but I don't entirely trust myself. 
+
+        std::cout << "For a MCHit seed at (" << hit.Position.X() << ", " << hit.Position.Y() << ", " << hit.Position.Z() << ":\n";
 
         //Look for TG4HitSegments from neutrons that are inside hitBox
         neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat](auto& seg)
@@ -370,6 +387,7 @@ namespace reco
                              //Otherwise, add this segments's energy to the MCHit
                              hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
                              hit.Energy += seg.EnergyDeposit;
+                             std::cout << "Accumulated another neutron seg's energy of " << seg.EnergyDeposit << "\n";
                              //TODO: Energy-weighted position average
   
                              return true;
@@ -389,6 +407,9 @@ namespace reco
         }
 
         if(hit.Energy > fEMin && (hit.Energy > otherE*3.)) fHits.push_back(hit);
+        else if(hit.Energy <= fEMin) std::cout << "A neutron hit was thrown out because it only had " << hit.Energy << " energy.\n";
+        else if((hit.Energy > otherE*3.)) std::cout << "A neutron hit was thrown out because there was too much other energy: " 
+                                                    << otherE << " versus " << hit.Energy << ".\n";
       } //While neutSegs is non-empty
     } //For each SensDet
   
@@ -396,7 +417,7 @@ namespace reco
   }
 
   //Put all of the descendants of parent into ids.  This is a recursive function, so be careful how you use it.  
-  void NoGridNeutronHits::Descendants(const int& parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const
+  void NoGridNeutronHits::Descendants(const int parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const
   {
     for(const auto& traj: trajs)
     {
