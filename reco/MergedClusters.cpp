@@ -64,16 +64,17 @@ namespace reco
     auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
 
     //Get a list of MCHits that are in the fiducial volume
-    std::list<pers::MCHit> hits(fHits.begin(), fHits.end());
+    //Now done in during hit-making
+    /*std::list<pers::MCHit> hits(fHits.begin(), fHits.end());
     hits.remove_if([mat, shape](const auto& hit)
                   {
                     const auto local = ::InLocal(hit.Position.Vect(), mat);
                     double pos[] = {local.X(), local.Y(), local.Z()};
                     return shape->Contains(pos);
-                  });
+                  });*/
 
     //Tejin-like candidates (from Minerva).  
-    for(auto outerHitPos = hits.begin(); outerHitPos != hits.end(); ++outerHitPos)
+    for(auto outerHitPos = fHits.begin(); outerHitPos != fHits.end(); ++outerHitPos) //hits.begin(); outerHitPos != hits.end(); ++outerHitPos)
     {
       auto& outerHit = *outerHitPos; //Thanks for nothing TTreeReaderArray<pers::MCHit>::Iterator_t      
 
