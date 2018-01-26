@@ -434,7 +434,7 @@ namespace reco
           //Add up the non-neutron-descended energy deposits in this box.
           //At least do this calculation when I know what I'm looking for.  
           double otherE = 0.;
-          std::cout << "There are " << others.size() << " non-neutron particles in the quadrant with this MCHit.\n";
+          //std::cout << "There are " << others.size() << " non-neutron particles in the quadrant with this MCHit.\n";
           for(auto otherPtr = others.begin(); otherPtr != others.end() /*&& !(hit.Energy+10. > otherE*3.)*/; ++otherPtr) //Add an extra 10 MeV to be sure this is not 
                                                                                                                          //a floating point precision problem
           {
@@ -454,13 +454,13 @@ namespace reco
 
           }
 
-          std::cout << "Hit energy from neutron descendants is " << hit.Energy << ".\n"
-                    << "Hit overlaps with " << otherE << " energy from other stuff.\n";
+          /*std::cout << "Hit energy from neutron descendants is " << hit.Energy << ".\n"
+                    << "Hit overlaps with " << otherE << " energy from other stuff.\n";*/
 
           if(hit.Energy > otherE*3.) fHits.push_back(hit);
           //else if(hit.Energy <= fEMin) std::cout << "A neutron hit was thrown out because it only had " << hit.Energy << " energy.\n";
-          else std::cout << "A neutron hit was thrown out because there was too much other energy: " 
-                         << otherE << " versus " << hit.Energy << ".\n";
+          /*else std::cout << "A neutron hit was thrown out because there was too much other energy: " 
+                         << otherE << " versus " << hit.Energy << ".\n";*/
         } //If hit is above energy threshold
       } //While neutSegs is non-empty
     } //For each SensDet
