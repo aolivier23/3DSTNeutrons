@@ -68,7 +68,7 @@ namespace
   {
     const auto dir = (end-begin).Unit();
     double posArr[3] = {0}, dirArr[3] = {0};
-    begin.GetXYZ(posArr);
+    (begin-shapeCenter).GetXYZ(posArr);
     dir.GetXYZ(dirArr);
 
     //Make sure dir points away from shapeCenter
@@ -86,10 +86,21 @@ namespace
   {
     const auto dir = (end-begin).Unit();
     double posArr[3] = {0}, dirArr[3] = {0};
-    begin.GetXYZ(posArr);
+    (begin-shapeCenter).GetXYZ(posArr);
     dir.GetXYZ(dirArr);
 
     return shape.DistFromOutside(posArr, dirArr);
+  }
+
+  const TG4Trajectory& Matriarch(const TG4Trajectory& child, const std::vector<TG4Trajectory>& trajs)
+  {
+    if(child.ParentId == -1) return child;
+    return trajs[child.ParentId];
+  } 
+
+  const TG4Trajectory& Matriarch(const TG4HitSegment& seg, const std::vector<TG4Trajectory>& trajs)
+  {
+    return Matriarch(trajs[seg.PrimaryId], trajs);
   }
 
   //(Improved?) geometry algorithm:
@@ -108,7 +119,6 @@ namespace
   //few enough hit segments in group.   
 
   //TODO: Probably terrible object design
-  //TODO: Way to get Plus, Minus, and Both for Both entries
 
   //Classes for custom geometry sorting algorithm.  
   class ZHemisphere
@@ -134,7 +144,6 @@ namespace
       TVector3 Center;
       std::unique_ptr<ZHemisphere> Plus;
       std::unique_ptr<ZHemisphere> Minus;
-      std::list<TG4HitSegment> Both;
   
       virtual std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
@@ -142,19 +151,24 @@ namespace
         bool stop = (hit.Stop.Y() < Center.Y());
   
         if(start == stop) return start?(*Minus)[hit]:(*Plus)[hit]; //A straight line that starts and ends in the same octant cannot visit any other octants
-        return Both;
+
+        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        if(startDiff > stopDiff)
+        {
+          return start?(*Minus)[hit]:(*Plus)[hit];
+        }
+        return stop?(*Minus)[hit]:(*Plus)[hit];
       }
 
       size_t size() const
       {
-        return Both.size()+Plus->size()+Minus->size();
+        return Plus->size()+Minus->size();
       }
 
       TG4HitSegment& first()
       {
         if(Plus->size() > 0) return Plus->first();
-        if(Minus->size() > 0) return Minus->first();
-        return *(Both.begin());
+        return Minus->first();
       }
   };
 
@@ -162,14 +176,12 @@ namespace
   {
     public:
       XHemisphere(const TVector3& center, const double width, const int subdiv): Center(center), Plus(center+TVector3(width/2., 0., 0.), width, subdiv), 
-                                                                                 Minus(center-TVector3(width/2., 0., 0.), width, subdiv), 
-                                                                                 Both() {};
+                                                                                 Minus(center-TVector3(width/2., 0., 0.), width, subdiv) {};
       virtual ~XHemisphere() = default;
   
       TVector3 Center;
       YHemisphere Plus;
       YHemisphere Minus;
-      std::list<TG4HitSegment> Both;
   
       std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
@@ -177,19 +189,24 @@ namespace
         bool stop = (hit.Stop.X() < Center.X());
   
         if(start == stop) return start?Minus[hit]:Plus[hit]; //A straight line that starts and ends in the same octant cannot visit any other octants
-        return Both;
+
+        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        if(startDiff > stopDiff)
+        {
+          return start?Minus[hit]:Plus[hit];
+        }
+        return stop?Minus[hit]:Plus[hit];
       }
 
       size_t size() const
       {
-        return Both.size()+Plus.size()+Minus.size();
+        return Plus.size()+Minus.size();
       }
 
       TG4HitSegment& first()
       {
         if(Plus.size() > 0) return Plus.first();
-        if(Minus.size() > 0) return Minus.first();
-        return *(Both.begin());
+        return Minus.first();
       }
   };
 
@@ -197,12 +214,11 @@ namespace
   class ZEnd: public ZHemisphere
   {
     public:
-      ZEnd(const TVector3& center): ZHemisphere(center), Plus(), Minus(), Both() {}      
+      ZEnd(const TVector3& center): ZHemisphere(center), Plus(), Minus() {}      
       virtual ~ZEnd() = default;
 
       std::list<TG4HitSegment> Plus;
       std::list<TG4HitSegment> Minus;
-      std::list<TG4HitSegment> Both;
 
       virtual std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
@@ -210,19 +226,24 @@ namespace
         bool stop = (hit.Stop.Z() < Center.Z());
 
         if(start == stop) return start?Minus:Plus; //A straight line that starts and ends in the same octant cannot visit any other octants
-        return Both;
+
+        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        if(startDiff > stopDiff)
+        {
+          return start?Minus:Plus;
+        }
+        return stop?Minus:Plus;
       }
 
       virtual size_t size() const
       {
-        return Both.size()+Plus.size()+Minus.size();
+        return Plus.size()+Minus.size();
       }
 
       virtual TG4HitSegment& first()
       {
         if(Plus.size() > 0) return *(Plus.begin());
-        if(Minus.size() > 0) return *(Minus.begin());
-        return *(Both.begin());
+        return *(Minus.begin());
       }
   };
 
@@ -231,13 +252,12 @@ namespace
   {
     public:
       ZMore(const TVector3& center, const double width, const int subdiv): ZHemisphere(center), Plus(center+TVector3(0., 0., width/2.), width/2., subdiv-1), 
-                                                                           Minus(center-TVector3(0., 0., width/2.), width/2., subdiv-1), Both() {} 
+                                                                           Minus(center-TVector3(0., 0., width/2.), width/2., subdiv-1) {} 
       ZMore() = delete;
       virtual ~ZMore() = default;
   
       XHemisphere Plus;
       XHemisphere Minus;
-      std::list<TG4HitSegment> Both;
   
       virtual std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
@@ -245,23 +265,28 @@ namespace
         bool stop = (hit.Stop.Z() < Center.Z());
   
         if(start == stop) return start?Minus[hit]:Plus[hit]; //A straight line that starts and ends in the same octant cannot visit any other octants
-        return Both;
+
+        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        if(startDiff > stopDiff)
+        {
+          return start?Minus[hit]:Plus[hit];
+        }
+        return stop?Minus[hit]:Plus[hit];
       }
 
       virtual size_t size() const
       {
-        return Both.size()+Plus.size()+Minus.size();
+        return Plus.size()+Minus.size();
       }
 
       virtual TG4HitSegment& first()
       {
         if(Plus.size() > 0) return Plus.first();
-        if(Minus.size() > 0) return Minus.first();
-        return *(Both.begin());
+        return Minus.first();
       }
   };
 
-  YHemisphere::YHemisphere(const TVector3& center, const double width, const int subdiv): Center(center), Plus(), Minus(), Both()
+  YHemisphere::YHemisphere(const TVector3& center, const double width, const int subdiv): Center(center), Plus(), Minus()
   {
     if(subdiv > 0)
     {
@@ -294,7 +319,9 @@ namespace reco
 
     //Remember that I get fEvent and fGeo for free from the base class.  
     //First, figure out which TG4Trajectories are descendants of particles I am interested in.  
-    //I am interested in primary neutrons with > 2 MeV KE.   
+    //I am interested in primary neutrons with > 2 MeV KE. 
+    //TODO: ::Matriarch() and Descendants() sometimes give different results!  I am not entirely convinced by the 
+    //      results of Descendants(), so trying ::Matriarch() as main method.  
     std::vector<int> neutDescendIDs; //TrackIDs of FS neutron descendants
     const auto trajs = fEvent->Trajectories;
     const auto vertices = fEvent->Primaries;
@@ -324,7 +351,7 @@ namespace reco
       if(det.second.size() > 1e4) subdiv = 3;
 
       //TODO: Only use neutGeom if there are lots of energy deposits from FS neutrons? 
-      ::XHemisphere neutGeom(center, 2400, subdiv), otherGeom(center, 2400, subdiv); //Split based on the first vertex in this event.  
+      ::XHemisphere neutGeom(center, 1000, subdiv), otherGeom(center, 1000, subdiv); //Split based on the first vertex in this event.  
 
       //Get geometry information about the detector of interest
       //TODO: This is specfic to the files I am processing right now!
@@ -341,11 +368,23 @@ namespace reco
         double arr[] = {local.X(), local.Y(), local.Z()};
         if(shape->Contains(arr))
         {
-          if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutGeom[seg].push_back(seg);
-          else otherGeom[seg].push_back(seg);
+          if(::Matriarch(seg, trajs).Name == "neutron") //std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end())
+          {
+            neutGeom[seg].push_back(seg);
+            //std::cout << "Marking a segment produced by a " << trajs[seg.PrimaryId].Name << " as a neutron segment.\n";
+          }
+          else 
+          {
+            //Cross check on selection of neutron descendants
+            /*std::cout << "Marking a segment produced from a " << ::Matriarch(seg, trajs).Name << " as a non-neutron segment.\n";
+            std::cout << "This other particle was " << ((std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end())?"":" not")
+                      << "marked as a neutron by Descendants().\n";*/
+            //trajs[seg.PrimaryId].Name << " as an other segement.\n";
+            otherGeom[seg].push_back(seg);
+          }
         }
-        else if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) 
-          std::cout << "A neutron hit was thrown out because it was outside the fiducial.\n";
+        /*else if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) 
+          std::cout << "A neutron hit at (" << arr[0] << ", " << arr[1] << ", " << arr[2] << ") (local) was thrown out because it was outside the fiducial.\n";*/
       }
 
       //Form MCHits from interesting TG4HitSegments
@@ -354,32 +393,29 @@ namespace reco
         const TG4HitSegment seed = neutGeom.first(); //*(neutSegs.begin()); //Make sure this is copied and not a reference since I am about to delete it
 
         //Remove this and replace the std::lists above where neutGeom and otherGeom are defined to not use crazy geometry algorithm.  
-        auto& neutSegs = neutGeom[seed]; //TODO: If seed is in Both, make sure I get everything.  I will probably have to define some kind of 
-                                         //      meta-list structure so that I can do the remove operations later in this loop.  In the meantime, 
-                                         //      I don't expect Both to be a popular list.  A better solution might be to just make sure a Both 
-                                         //      return adds the segment to both lists.  
-        auto& others = otherGeom[seed]; //TODO: If seed is in Both, make sure I get everything.  I will probably have to define some kind of 
-                                        //      meta-list structure so that I can do the remove operations later in this loop.
+        auto& neutSegs = neutGeom[seed];
+        auto& others = otherGeom[seed]; 
 
         pers::MCHit hit;
         hit.Energy = seed.EnergyDeposit;
         hit.TrackIDs.push_back(seed.PrimaryId);
         hit.Width = fWidth;
-        hit.Position = (seed.Start+seed.Stop)*0.5;
+        hit.Position = seed.Start;
 
         TVector3 boxCenter = hit.Position.Vect();
 
         neutSegs.erase(neutSegs.begin()); //remove the seed from the list of neutSegs so that it is not double-counted later.
         //Now, try to never use seed again.  It's probably safe anyway if I copied it correctly, but I don't entirely trust myself. 
 
-        std::cout << "For a MCHit seed at (" << hit.Position.X() << ", " << hit.Position.Y() << ", " << hit.Position.Z() << ":\n";
+        //std::cout << "For a MCHit seed at (" << hit.Position.X() << ", " << hit.Position.Y() << ", " << hit.Position.Z() << ":\n";
 
         //Look for TG4HitSegments from neutrons that are inside hitBox
         neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat](auto& seg)
                            {
                              //Find out how much of seg's total length is inside this box
-                             const double dist = ::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), 
-                                                                   ::InLocal(seg.Stop.Vect(), mat), boxCenter);
+                             //TODO: Should these be InLocal()?
+                             const double dist = ::DistFromOutside(hitBox, seg.Start.Vect(),
+                                                                   seg.Stop.Vect(), boxCenter);
                                                                                                                                           
                              if(dist > 0.0) return false; //If this segment is completely outside 
                                                           //the box that contains seed, keep it for later.
@@ -387,29 +423,45 @@ namespace reco
                              //Otherwise, add this segments's energy to the MCHit
                              hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
                              hit.Energy += seg.EnergyDeposit;
-                             std::cout << "Accumulated another neutron seg's energy of " << seg.EnergyDeposit << "\n";
+                             //std::cout << "Accumulated another neutron seg's energy of " << seg.EnergyDeposit << "\n";
                              //TODO: Energy-weighted position average
   
                              return true;
                            }); //Looking for segments in the same box
-        
-        //Add up the non-neutron-descended energy deposits in this box.
-        //At least do this calculation when I know what I'm looking for.  
-        double otherE = 0.;
-        for(auto otherPtr = others.begin(); otherPtr != others.end() && 3.*otherE < hit.Energy; ++otherPtr)
-        {
-          const auto& seg = *otherPtr;
-          if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat),
-             ::InLocal(seg.Stop.Vect(), mat), boxCenter) <= 0)
+    
+        if(hit.Energy > fEMin)
+        {    
+          //Add up the non-neutron-descended energy deposits in this box.
+          //At least do this calculation when I know what I'm looking for.  
+          double otherE = 0.;
+          std::cout << "There are " << others.size() << " non-neutron particles in the quadrant with this MCHit.\n";
+          for(auto otherPtr = others.begin(); otherPtr != others.end() /*&& !(hit.Energy+10. > otherE*3.)*/; ++otherPtr) //Add an extra 10 MeV to be sure this is not 
+                                                                                                                         //a floating point precision problem
           {
-            otherE += seg.EnergyDeposit;
-          }
-        }
+            const auto& seg = *otherPtr;
+            //TODO: Should these be InLocal()?
+            //TODO: Use result of DistFromInside to figure out how much energy is contributed.
+            if(::DistFromInside(hitBox, seg.Start.Vect(), seg.Stop.Vect(), boxCenter) > 0.0)
+            {
+              otherE += seg.EnergyDeposit;
+            }
 
-        if(hit.Energy > fEMin && (hit.Energy > otherE*3.)) fHits.push_back(hit);
-        else if(hit.Energy <= fEMin) std::cout << "A neutron hit was thrown out because it only had " << hit.Energy << " energy.\n";
-        else if((hit.Energy > otherE*3.)) std::cout << "A neutron hit was thrown out because there was too much other energy: " 
-                                                    << otherE << " versus " << hit.Energy << ".\n";
+            //Simpler algorithm to check for segments that either start or end in this hit.
+            /*const auto startDiff = seg.Start.Vect()-boxCenter;
+            const auto stopDiff = seg.Stop.Vect()-boxCenter;
+            if(std::fabs(startDiff.X()) < fWidth || std::fabs(startDiff.Y()) < fWidth || std::fabs(startDiff.Z()) < fWidth) otherE += seg.EnergyDeposit;
+            else if(std::fabs(stopDiff.X()) < fWidth || std::fabs(stopDiff.Y()) < fWidth || std::fabs(stopDiff.Z()) < fWidth) otherE += seg.EnergyDeposit;*/
+
+          }
+
+          std::cout << "Hit energy from neutron descendants is " << hit.Energy << ".\n"
+                    << "Hit overlaps with " << otherE << " energy from other stuff.\n";
+
+          if(hit.Energy > otherE*3.) fHits.push_back(hit);
+          //else if(hit.Energy <= fEMin) std::cout << "A neutron hit was thrown out because it only had " << hit.Energy << " energy.\n";
+          else std::cout << "A neutron hit was thrown out because there was too much other energy: " 
+                         << otherE << " versus " << hit.Energy << ".\n";
+        } //If hit is above energy threshold
       } //While neutSegs is non-empty
     } //For each SensDet
   
