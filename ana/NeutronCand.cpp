@@ -24,6 +24,12 @@ namespace
       }
     }
   }
+
+  const TG4Trajectory& Matriarch(const TG4Trajectory& child, const std::vector<TG4Trajectory>& trajs)
+  {
+    if(child.ParentId == -1) return child;
+    return Matriarch(trajs[child.ParentId], trajs);
+  }
 }
 
 namespace ana
@@ -40,8 +46,15 @@ namespace ana
     fCauseEnergyVsCandEnergy = config.File->make<TH2D>("CauseEnergyVsCandEnergy", "KE of FS Neutrons versus Energies of their Candidates;Candidate Energy [MeV];"
                                                                                   "FS Neutron KE [MeV];FS Neutrons", 150, 0, 1000, 200, 0, 3000);
     fCandAngleWRTCause = config.File->make<TH1D>("CandAngleWRTCause", "Angle of Candidate w.r.t. InitialMomentum of FS Neutron;"
-                                                                      "#Delta#theta_{Cand} [rad.];Candidates", 200, 0., 3.1415926535897932384626433832);
+                                                                      "#Delta#theta_{Cand} [degrees];Candidates", 180, 0., 180.);
     fDistFromVtx = config.File->make<TH1D>("DistFromVertex", "Distance of Closest Candidate to Vertex per FS Neutron;Distance [mm];FS Neutrons", 350, 0, 5000);
+
+    fCandPerNeutronVsNeutronKE = config.File->make<TH2D>("CandPerNeutronVsNeutronKE", "Number of Candidates for Each FS Neutron "
+                                                                                      "versus Neutron KE;Candidates;KE [MeV];FS Neutrons", 
+                                                         200, 0, 3000, 10, 0, 10); 
+    fAngleVsDistFromVtx = config.File->make<TH2D>("AngleVsDistFromVtx", "Angle Candidate Makes w.r.t. FS Neutron Momentum versus Distance of "
+                                                                        "Candidate from vertex;#Delta#theta_{Cand} [degrees];Distance from "
+                                                                        "Vertex [mm];Candidates", 350, 0, 5000, 180, 0., 180.);
   }
 
   void NeutronCand::DoAnalyze()
@@ -55,8 +68,11 @@ namespace ana
       {
         if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
         {
+          //fFSNeutronEnergy->Fill(trajs[part.TrackId].InitialMomentum.E()-trajs[part.TrackId].InitialMomentum.Mag());
+
           std::vector<int> descend;
           Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
+          descend.push_back(part.TrackId);
           for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId;
         }
       }
@@ -70,20 +86,43 @@ namespace ana
       fCandidateEnergy->Fill(cand.Energy);
      
       std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
-      for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); //TODO: The lookup of TrackIDsToFS is giving a default-constructed int here
-      
+      for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); 
+
+      double sumCauseE = 0.; //Sum of energy from all causes of this candidate      
       for(const int neutronID: FSIds) //For each FS neutron TrackID
       {
         FSToCands[neutronID].push_back(cand);
         const auto& neutron = trajs[neutronID];
 
-        fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
+        sumCauseE += neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag();
+        //fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
+        /*if(cand.Energy > neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag())
+          std::cout << "Candidate energy, " << cand.Energy << ", is > cause energy: " 
+                    << neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag() << ".  This candidate has " 
+                    << FSIds.size() << " unique causes.\n";*/ //These are multi-cause events!
 
         //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
         const auto candVec = (cand.Position-neutron.Points[0].Position).Vect();
 
-        fCandAngleWRTCause->Fill(std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit())));
+        const double angle = std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit()))*180./3.1415926535897932384626433832;
+        fCandAngleWRTCause->Fill(angle);
+        fAngleVsDistFromVtx->Fill(candVec.Mag(), angle);
+
+        /*if(std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit())) == 0)
+        {
+          std::cout << "The angle between this candidate and its' FS neutron is 0!.\n";
+                    << "candVec is (" << candVec.X() << ", " << candVec.Y() << ", " << candVec.Z() << ")\n"
+                    << "The neutron's starting momentum is (" << neutron.InitialMomentum.X() << ", " 
+                                                               << neutron.InitialMomentum.Y() << ", " 
+                                                               << neutron.InitialMomentum.Z() << ")\n"
+                    << "cand.Position is (" << cand.Position.X() << ", " << cand.Position.Y() << ", " << cand.Position.Z() << ")\n"
+                    << "The vertex is (" << neutron.Points[0].Position.X() << ", " 
+                                         << neutron.Points[0].Position.Y() << ", " 
+                                         << neutron.Points[0].Position.Z() << ")\n";
+        }*/
       }
+      fCauseEnergyVsCandEnergy->Fill(cand.Energy, sumCauseE);
+      if(cand.Energy > sumCauseE) std::cout << "Candidate energy, " << cand.Energy << ", is > sum of cause energies: " << sumCauseE << "\n";
     }
 
     //fCandPerNeutron->Fill(fClusters.GetSize()/FSToCands.size());
@@ -101,6 +140,7 @@ namespace ana
                                                                                  });
       fDistFromVtx->Fill((closest->Position-FSPos).Vect().Mag());
       fCandPerNeutron->Fill(FS.second.size());
+      fCandPerNeutronVsNeutronKE->Fill(trajs[FS.first].InitialMomentum.E()-trajs[FS.first].InitialMomentum.Mag(), FS.second.size());
     }
   }
 

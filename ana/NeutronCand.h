@@ -39,6 +39,9 @@ namespace ana
       TH2D* fCauseEnergyVsCandEnergy; //Energy of candidates versus the FS neutrons they are descended from
       TH1D* fCandAngleWRTCause; //Angle of candidate to FS neutron's initial momentum
       TH1D* fDistFromVtx; //Distance of candidates from neutrino vertex.  Only count first candidate for each FS neutron.
+      TH2D* fCandPerNeutronVsNeutronKE; //Number of candidates versus neutron KE.  Filled once per FS neutron with candidates.
+      TH2D* fAngleVsDistFromVtx; //Angle of candidate w.r.t. FS neutron versus distance from vertex to show why angle distribution has 
+                                 //peak at 0
   };
 }
 

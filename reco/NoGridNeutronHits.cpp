@@ -92,16 +92,16 @@ namespace
     return shape.DistFromOutside(posArr, dirArr);
   }
 
-  const TG4Trajectory& Matriarch(const TG4Trajectory& child, const std::vector<TG4Trajectory>& trajs)
+  /*const TG4Trajectory& Matriarch(const TG4Trajectory& child, const std::vector<TG4Trajectory>& trajs)
   {
     if(child.ParentId == -1) return child;
-    return trajs[child.ParentId];
+    return Matriarch(trajs[child.ParentId], trajs);
   } 
 
   const TG4Trajectory& Matriarch(const TG4HitSegment& seg, const std::vector<TG4Trajectory>& trajs)
   {
     return Matriarch(trajs[seg.PrimaryId], trajs);
-  }
+  }*/
 
   //(Improved?) geometry algorithm:
   //Split space into octants around the interaction vertex.  
@@ -330,7 +330,12 @@ namespace reco
       for(const auto& prim: vtx.Particles)
       {
         const auto mom = trajs[prim.TrackId].InitialMomentum;
-        if(prim.Name == "neutron" && mom.E()-mom.Mag() > fEMin) Descendants(prim.TrackId, trajs, neutDescendIDs);
+        if(prim.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
+        {
+          Descendants(prim.TrackId, trajs, neutDescendIDs);
+          neutDescendIDs.push_back(prim.TrackId);
+        }
+        //else std::cout << "Primary named " << prim.Name << " with KE " << mom.E()-mom.Mag() << " is not a FS neutron.\n";
       }
     }
     TVector3 center(0., 0., 0.);
@@ -359,7 +364,6 @@ namespace reco
       auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
       auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
 
-      //std::list<TG4HitSegment> neutSegs, others; //Sort HitSegments into "interesting" and "others"
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
         //Simple fiducial cut.  Should really look at how much of deposit is inside the fiducial volume or something.  
@@ -368,29 +372,23 @@ namespace reco
         double arr[] = {local.X(), local.Y(), local.Z()};
         if(shape->Contains(arr))
         {
-          if(::Matriarch(seg, trajs).Name == "neutron") //std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end())
+          //const auto primary = ::Matriarch(seg, trajs);
+          auto found = std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId);
+          if(found != neutDescendIDs.end())
           {
             neutGeom[seg].push_back(seg);
-            //std::cout << "Marking a segment produced by a " << trajs[seg.PrimaryId].Name << " as a neutron segment.\n";
           }
           else 
           {
-            //Cross check on selection of neutron descendants
-            /*std::cout << "Marking a segment produced from a " << ::Matriarch(seg, trajs).Name << " as a non-neutron segment.\n";
-            std::cout << "This other particle was " << ((std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end())?"":" not")
-                      << "marked as a neutron by Descendants().\n";*/
-            //trajs[seg.PrimaryId].Name << " as an other segement.\n";
             otherGeom[seg].push_back(seg);
           }
         }
-        /*else if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) 
-          std::cout << "A neutron hit at (" << arr[0] << ", " << arr[1] << ", " << arr[2] << ") (local) was thrown out because it was outside the fiducial.\n";*/
       }
 
       //Form MCHits from interesting TG4HitSegments
       while(neutGeom.size() > 0)
       {
-        const TG4HitSegment seed = neutGeom.first(); //*(neutSegs.begin()); //Make sure this is copied and not a reference since I am about to delete it
+        const TG4HitSegment seed = neutGeom.first(); //Make sure this is copied and not a reference since I am about to delete it
 
         //Remove this and replace the std::lists above where neutGeom and otherGeom are defined to not use crazy geometry algorithm.  
         auto& neutSegs = neutGeom[seed];
@@ -406,8 +404,6 @@ namespace reco
 
         neutSegs.erase(neutSegs.begin()); //remove the seed from the list of neutSegs so that it is not double-counted later.
         //Now, try to never use seed again.  It's probably safe anyway if I copied it correctly, but I don't entirely trust myself. 
-
-        //std::cout << "For a MCHit seed at (" << hit.Position.X() << ", " << hit.Position.Y() << ", " << hit.Position.Z() << ":\n";
 
         //Look for TG4HitSegments from neutrons that are inside hitBox
         neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat](auto& seg)
@@ -434,7 +430,6 @@ namespace reco
           //Add up the non-neutron-descended energy deposits in this box.
           //At least do this calculation when I know what I'm looking for.  
           double otherE = 0.;
-          //std::cout << "There are " << others.size() << " non-neutron particles in the quadrant with this MCHit.\n";
           for(auto otherPtr = others.begin(); otherPtr != others.end() /*&& !(hit.Energy+10. > otherE*3.)*/; ++otherPtr) //Add an extra 10 MeV to be sure this is not 
                                                                                                                          //a floating point precision problem
           {
@@ -454,13 +449,7 @@ namespace reco
 
           }
 
-          /*std::cout << "Hit energy from neutron descendants is " << hit.Energy << ".\n"
-                    << "Hit overlaps with " << otherE << " energy from other stuff.\n";*/
-
           if(hit.Energy > otherE*3.) fHits.push_back(hit);
-          //else if(hit.Energy <= fEMin) std::cout << "A neutron hit was thrown out because it only had " << hit.Energy << " energy.\n";
-          /*else std::cout << "A neutron hit was thrown out because there was too much other energy: " 
-                         << otherE << " versus " << hit.Energy << ".\n";*/
         } //If hit is above energy threshold
       } //While neutSegs is non-empty
     } //For each SensDet
