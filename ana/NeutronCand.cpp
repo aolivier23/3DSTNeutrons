@@ -53,8 +53,9 @@ namespace ana
                                                                                       "versus Neutron KE;Candidates;KE [MeV];FS Neutrons", 
                                                          200, 0, 3000, 10, 0, 10); 
     fAngleVsDistFromVtx = config.File->make<TH2D>("AngleVsDistFromVtx", "Angle Candidate Makes w.r.t. FS Neutron Momentum versus Distance of "
-                                                                        "Candidate from vertex;#Delta#theta_{Cand} [degrees];Distance from "
-                                                                        "Vertex [mm];Candidates", 350, 0, 5000, 180, 0., 180.);
+                                                                        "Candidate from vertex;Distance from Vertex [mm];"
+                                                                        "Candidate from vertex;#Delta#theta_{Cand} [degrees];Candidates", 
+                                                                        350, 0, 5000, 180, 0., 180.);
   }
 
   void NeutronCand::DoAnalyze()
@@ -78,51 +79,53 @@ namespace ana
       }
     }
 
-    fNCand->Fill(fClusters.GetSize());
+    const double vtxBoxWidth = 10.;
+    fNCand->Fill(std::count_if(fClusters.begin(), fClusters.end(), [&vtxBoxWidth, &TrackIDsToFS, &trajs](const auto& cand)
+                                                                   {
+                                                                     const auto& neutron = trajs[TrackIDsToFS[cand.TrackIDs.front()]];
+                                                                     const auto vtxDiff = (cand.Position - neutron.Points[0].Position).Vect();
+                                                                     return (vtxDiff.X() > vtxBoxWidth && 
+                                                                             vtxDiff.Y() > vtxBoxWidth && 
+                                                                             vtxDiff.Z() > vtxBoxWidth);
+                                                                   }));
 
     std::map<int, std::vector<pers::MCCluster>> FSToCands; //Map of FS neutron to the candidates it is responsible for
     for(const auto& cand: fClusters)
     {
-      fCandidateEnergy->Fill(cand.Energy);
-     
-      std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
-      for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); 
-
-      double sumCauseE = 0.; //Sum of energy from all causes of this candidate      
-      for(const int neutronID: FSIds) //For each FS neutron TrackID
+      //Don't count candidates near the vertex since my octree causes artifacts there.
+      const auto vtxDiff = (cand.Position - trajs[TrackIDsToFS[cand.TrackIDs.front()]].Points[0].Position).Vect(); //TODO: This might get ugly 
+                                                                                                            //      with multiple vertices.
+      if(vtxDiff.X() > vtxBoxWidth && vtxDiff.Y() > vtxBoxWidth && vtxDiff.Z() > vtxBoxWidth) //10cm^3 vertex box
       {
-        FSToCands[neutronID].push_back(cand);
-        const auto& neutron = trajs[neutronID];
+        fCandidateEnergy->Fill(cand.Energy);
+       
+        std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
+        for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); 
 
-        sumCauseE += neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag();
-        //fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
-        /*if(cand.Energy > neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag())
-          std::cout << "Candidate energy, " << cand.Energy << ", is > cause energy: " 
-                    << neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag() << ".  This candidate has " 
-                    << FSIds.size() << " unique causes.\n";*/ //These are multi-cause events!
-
-        //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
-        const auto candVec = (cand.Position-neutron.Points[0].Position).Vect();
-
-        const double angle = std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit()))*180./3.1415926535897932384626433832;
-        fCandAngleWRTCause->Fill(angle);
-        fAngleVsDistFromVtx->Fill(candVec.Mag(), angle);
-
-        /*if(std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit())) == 0)
+        double sumCauseE = 0.; //Sum of energy from all causes of this candidate      
+        for(const int neutronID: FSIds) //For each FS neutron TrackID
         {
-          std::cout << "The angle between this candidate and its' FS neutron is 0!.\n";
-                    << "candVec is (" << candVec.X() << ", " << candVec.Y() << ", " << candVec.Z() << ")\n"
-                    << "The neutron's starting momentum is (" << neutron.InitialMomentum.X() << ", " 
-                                                               << neutron.InitialMomentum.Y() << ", " 
-                                                               << neutron.InitialMomentum.Z() << ")\n"
-                    << "cand.Position is (" << cand.Position.X() << ", " << cand.Position.Y() << ", " << cand.Position.Z() << ")\n"
-                    << "The vertex is (" << neutron.Points[0].Position.X() << ", " 
-                                         << neutron.Points[0].Position.Y() << ", " 
-                                         << neutron.Points[0].Position.Z() << ")\n";
-        }*/
+          FSToCands[neutronID].push_back(cand);
+          const auto& neutron = trajs[neutronID];
+
+          sumCauseE += neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag();
+          //fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
+          /*if(cand.Energy > neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag())
+            std::cout << "Candidate energy, " << cand.Energy << ", is > cause energy: " 
+                      << neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag() << ".  This candidate has " 
+                      << FSIds.size() << " unique causes.\n";*/ //These are multi-cause events!
+
+          //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
+          const auto candVec = (cand.Position-neutron.Points[0].Position).Vect();
+
+          const double angle = std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit()))*180./3.1415926535897932384626433832;
+          fCandAngleWRTCause->Fill(angle);
+          fAngleVsDistFromVtx->Fill(candVec.Mag(), angle);
+
+        }
+        fCauseEnergyVsCandEnergy->Fill(cand.Energy, sumCauseE); //Candidate energy might sometimes be slightly larger than sum of FS 
+                                                                //neutrons because of Fermi motion.  
       }
-      fCauseEnergyVsCandEnergy->Fill(cand.Energy, sumCauseE);
-      if(cand.Energy > sumCauseE) std::cout << "Candidate energy, " << cand.Energy << ", is > sum of cause energies: " << sumCauseE << "\n";
     }
 
     //fCandPerNeutron->Fill(fClusters.GetSize()/FSToCands.size());

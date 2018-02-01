@@ -73,18 +73,20 @@ namespace
   {
     const auto dir = (end-begin).Unit();
     double posArr[3] = {0}, dirArr[3] = {0};
-    begin.GetXYZ(posArr);
+    (begin-shapeCenter).GetXYZ(posArr);
     dir.GetXYZ(dirArr);
 
-    //Make sure dir points away from shapeCenter
-    if(dir.Dot(shapeCenter-begin) > 0)
-    {
-      dirArr[0] = -dirArr[0];
-      dirArr[1] = -dirArr[1];
-      dirArr[2] = -dirArr[2];
-    }
-
     return shape.DistFromInside(posArr, dirArr);
+  }
+
+  double DistFromOutside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
+  {
+    const auto dir = (end-begin).Unit();
+    double posArr[3] = {0}, dirArr[3] = {0};
+    (begin-shapeCenter).GetXYZ(posArr);
+    dir.GetXYZ(dirArr);
+
+    return shape.DistFromOutside(posArr, dirArr);
   }
 }
 
@@ -112,71 +114,87 @@ namespace reco
     for(const auto& traj: trajs)
     {
       const auto mom = traj.InitialMomentum;
-      if(traj.Name == "neutron" && mom.E()-mom.Mag() > fEMin) Descendants(traj.TrackId, trajs, neutDescendIDs);
+      if(traj.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
+      {
+        neutDescendIDs.push_back(traj.TrackId);
+        Descendants(traj.TrackId, trajs, neutDescendIDs);
+      }
     }
 
     //Get geometry information for forming MCHits
     TGeoBBox hitBox(fWidth/2., fWidth/2., fWidth/2.);
 
     //Next, find all TG4HitSegments that are descended from an interesting FS particle.   
+    //TODO: Fiducial cut
     for(const auto& det: fEvent->SegmentDetectors) //Loop over sensitive detectors
-    {
-      std::list<TG4HitSegment> neutSegs;
+    { 
+      size_t subdiv = 0;
+      if(det.second.size() > 1e2) subdiv = 1;
+      if(det.second.size() > 1e3) subdiv = 2;
+      if(det.second.size() > 1e4) subdiv = 3;
+
+      //Get geometry information about this detector
+      const std::string fiducial = "volA3DST_PV";
+      auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
+      auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
+
+      TVector3 center(); 
+      std::list<TG4HitSegment> neutSegs, others;
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
-        if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutSegs.push_back(seg);
+        const auto local = ::InLocal(seg.Start.Vect(), mat);
+        double arr[] = {local.X(), local.Y(), local.Z()};
+        if(shape->Contains(arr)) //Intentionally not extrapolating to the boundary.  Very reasonable to leave 
+                                 //some room before the boundary in a real detector anyway.  
+        {
+          if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutSegs.push_back(seg);
+          else others.push_back(seg);
+        }
       }
 
       //Form MCHits from interesting TG4HitSegments
       while(neutSegs.size() > 0)
       {
-        TG4HitSegment seed = *(neutSegs.begin()); //Make sure this is copied and not a reference
+        TG4HitSegment seed = *(neutSegs.begin());        
         neutSegs.erase(neutSegs.begin()); //remove the seed from the list of neutSegs so that it is not double-counted later.
 
-        //Get geometry information about this detector
-        //TODO: This won't do what I want with subvolumes of the "main" detector around.  Of course, most of this isn't needed 
-        //      with subvolumes of the main detector.
-        auto mat = ::findMat(fGeo->FindNode(seed.Start.X(), seed.Start.Y(), seed.Start.Z())->GetVolume()->GetName(), *(fGeo->GetTopNode()));
-        if(mat == nullptr) throw util::exception("Volume Not Found") << "Could not find transformation matrix for volume " << det.first << "\n";
-        
         const auto start = ::InLocal(seed.Start.Vect(), mat);
-        std::cout << "seed.Start is " << seed.Start.Vect() << ".  That is " << start << " in the local frame.\n";
         const auto stop = ::InLocal(seed.Stop.Vect(), mat);
-        std::cout << "seed.Stop is " << seed.Stop.Vect() << ".  That is " << stop << " in the local frame.\n";
-        const double length = (stop-start).Mag();
 
         //Loop over fWidth-sized cubes that contain some energy from seed.
-        //TODO: Most seeds aren't making it into this loop at all.  I think I see why my end condition 
-        //      only includes MCHits where the energy deposit completely leaves the box.   
-        for(double boxX = (((int)(start.X()/fWidth))+0.5)*fWidth; boxX < (((int)(stop.X()/fWidth))+1.0)*fWidth; boxX += fWidth)
+        //TODO: Count energy from non-neutron-descended particles.  
+
+        //Looping from - to + for ease of update condition, so find out which position is starting point and which is stopping point.  
+        //Note that I am potentially looping over some blocks without neutron energy deposits.  I am looping over a bounding box for this line that is 
+        //aligned with the detector's axes.  
+        const auto xCond = std::minmax({start.X(), stop.X()});
+        const auto yCond = std::minmax({start.Y(), stop.Y()});
+        const auto zCond = std::minmax({start.Z(), stop.Z()});
+        for(double boxX = (std::floor(xCond.first/fWidth)+0.5)*fWidth; boxX < (std::floor(xCond.second/fWidth)+1.0)*fWidth; boxX += fWidth)
         {
-          for(double boxY = (((int)(start.Y()/fWidth))+0.5)*fWidth; boxY < (((int)(stop.Y()/fWidth))+1.0)*fWidth; boxY += fWidth)
+          for(double boxY = (std::floor(yCond.first/fWidth)+0.5)*fWidth; boxY < (std::floor(yCond.second/fWidth)+1.0)*fWidth; boxY += fWidth)
           {
-            for(double boxZ = (((int)(start.Z()/fWidth))+0.5)*fWidth; boxZ < (((int)(stop.Z()/fWidth))+1.0)*fWidth; boxZ += fWidth)
+            for(double boxZ = (std::floor(zCond.first/fWidth)+0.5)*fWidth; boxZ < (std::floor(zCond.second/fWidth)+1.0)*fWidth; boxZ += fWidth)
             {
               TVector3 boxCenter(boxX, boxY, boxZ);
-              std::cout << "Creating an MCHit at " << boxCenter << " in the local frame.\n";
                 
               pers::MCHit hit;
+              hit.Position = TLorentzVector(boxCenter.X(), boxCenter.Y(), boxCenter.Z(), 0.);
               hit.Width = fWidth;
-              hit.TrackIDs.push_back(seed.PrimaryId);
               const auto global = ::InGlobal(boxCenter, mat);
-              hit.Position = TLorentzVector(global.X(), global.Y(), global.Z(), seed.Start.T());
-              std::cout << "The new MCHit is at " << global << " in the global frame.\n";
 
-              //Figure out how much of seed's energy was deposited in this box.
-              const double dist = ::DistFromInside(hitBox, start, stop, boxCenter);
-              hit.Energy = seed.EnergyDeposit*dist/length;
-
-              neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat](auto& seg)
+              size_t nContrib; //The number of segements that contributed to this hit
+              neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat, &nContrib](auto& seg)
                                  {
+                                   //Find out whether seg is in this box at all.  
+                                   if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+
                                    //Find out how much of seg's total length is inside this box
                                    const double dist = ::DistFromInside(hitBox, ::InLocal(seg.Start.Vect(), mat), 
                                                                         ::InLocal(seg.Stop.Vect(), mat), boxCenter);
             
-                                   if(dist == 0.0) return false; //If this segment is completely outside 
-                                                                 //the box that contains seed, keep it for later.
-
+                                   ++nContrib;
+                                   hit.Position += TLorentzVector(0., 0., 0., seg.Start.T()); //Add time to hit.Position.
                                    const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
                                    hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
                                    if(dist >= length) //If this segment is entirely inside the same box as seed
@@ -185,22 +203,55 @@ namespace reco
                                      return true;
                                    }
 
-                                   //Otherwise, at least part of this segment is not in the same box as seed.  Find out how much is inside.  
-                                   hit.Energy += seg.EnergyDeposit*dist/length;
- 
                                    //Set this segment's starting position to where it leaves this box.  
                                    //Prevents double-counting of some of seg's energy.
-                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();  
-                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), seg.Start.T()); 
-                                   //TODO: I think I mangled the time component of seg.Start() here
+                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();
+                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
+
+                                   hit.Energy += seg.EnergyDeposit*dist/length;
+ 
+                                   return false;
+                                 }); //Looking for segments in the same box
+
+              //Make hit.Position.T() the average time
+              hit.Position = TLorentzVector(hit.Position.X(), hit.Position.Y(), hit.Position.Z(), hit.Position.T()/nContrib);
+
+              if(hit.Energy > fEMin) 
+              {
+                //Now, look for energy from segments of non-neutron-descended particles
+                double otherE;
+                others.remove_if([&otherE, &hitBox, &boxCenter, mat](auto& seg)
+                                 {
+                                   if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+
+                                   //Find out how much of seg's total length is inside this box
+                                   const double dist = ::DistFromInside(hitBox, ::InLocal(seg.Start.Vect(), mat), 
+                                                                        ::InLocal(seg.Stop.Vect(), mat), boxCenter);
+
+                                   const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
+                                   if(dist >= length) //If this segment is entirely inside the same box as seed
+                                   {
+                                     otherE += seg.EnergyDeposit;
+                                     return true;
+                                   }
+ 
+                                   //Set this segment's starting position to where it leaves this box.
+                                   //Prevents double-counting of some of seg's energy.
+                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();
+                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
+
+                                   otherE += seg.EnergyDeposit*dist/length;
 
                                    return false;
                                  }); //Looking for segments in the same box
 
-              if(hit.Energy > fEMin) fHits.push_back(hit);
+                if(hit.Energy > 3.*otherE) fHits.push_back(hit);
+                else std::cout << "Rejected a hit with " << hit.Energy << " MeV because there was " << otherE << " energy from others.\n";
+              } //If hit has more than minimum energy
             } //Loop over box z position
           } //Loop over box y position
         } //Loop over box x position
+        //TODO: Remove what is left of seed from the list of neutron hits.  
       } //While there are still netries in neutSegs
     } //For each SensDet
 
