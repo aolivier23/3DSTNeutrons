@@ -92,7 +92,7 @@ namespace
 
 namespace reco
 {
-  NeutronHits::NeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(10.), fEMin(2.)
+  NeutronHits::NeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(100.), fEMin(2.)
   {
     //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
     //      reconfigure from opt::Options after Parse() was called? 
@@ -128,11 +128,6 @@ namespace reco
     //TODO: Fiducial cut
     for(const auto& det: fEvent->SegmentDetectors) //Loop over sensitive detectors
     { 
-      size_t subdiv = 0;
-      if(det.second.size() > 1e2) subdiv = 1;
-      if(det.second.size() > 1e3) subdiv = 2;
-      if(det.second.size() > 1e4) subdiv = 3;
-
       //Get geometry information about this detector
       const std::string fiducial = "volA3DST_PV";
       auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
@@ -179,9 +174,11 @@ namespace reco
               TVector3 boxCenter(boxX, boxY, boxZ);
                 
               pers::MCHit hit;
-              hit.Position = TLorentzVector(boxCenter.X(), boxCenter.Y(), boxCenter.Z(), 0.);
-              hit.Width = fWidth;
+              hit.Energy = 0;
+              hit.TrackIDs = std::vector<int>();
               const auto global = ::InGlobal(boxCenter, mat);
+              hit.Position = TLorentzVector(global.X(), global.Y(), global.Z(), 0.);
+              hit.Width = fWidth;
 
               size_t nContrib; //The number of segements that contributed to this hit
               neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat, &nContrib](auto& seg)
@@ -197,7 +194,7 @@ namespace reco
                                    hit.Position += TLorentzVector(0., 0., 0., seg.Start.T()); //Add time to hit.Position.
                                    const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
                                    hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
-                                   if(dist >= length) //If this segment is entirely inside the same box as seed
+                                   if(dist > length) //If this segment is entirely inside the same box as seed
                                    {
                                      hit.Energy += seg.EnergyDeposit;
                                      return true;
@@ -209,17 +206,18 @@ namespace reco
                                    seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
 
                                    hit.Energy += seg.EnergyDeposit*dist/length;
+                                   seg.EnergyDeposit = seg.EnergyDeposit*dist/length;
  
                                    return false;
                                  }); //Looking for segments in the same box
 
               //Make hit.Position.T() the average time
-              hit.Position = TLorentzVector(hit.Position.X(), hit.Position.Y(), hit.Position.Z(), hit.Position.T()/nContrib);
+              hit.Position.SetT(hit.Position.T()/nContrib);
 
               if(hit.Energy > fEMin) 
               {
                 //Now, look for energy from segments of non-neutron-descended particles
-                double otherE;
+                double otherE = 0.;
                 others.remove_if([&otherE, &hitBox, &boxCenter, mat](auto& seg)
                                  {
                                    if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
@@ -229,7 +227,7 @@ namespace reco
                                                                         ::InLocal(seg.Stop.Vect(), mat), boxCenter);
 
                                    const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
-                                   if(dist >= length) //If this segment is entirely inside the same box as seed
+                                   if(dist > length) //If this segment is entirely inside the same box as seed
                                    {
                                      otherE += seg.EnergyDeposit;
                                      return true;
@@ -241,12 +239,13 @@ namespace reco
                                    seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
 
                                    otherE += seg.EnergyDeposit*dist/length;
+                                   seg.EnergyDeposit = seg.EnergyDeposit*dist/length;
 
                                    return false;
                                  }); //Looking for segments in the same box
 
                 if(hit.Energy > 3.*otherE) fHits.push_back(hit);
-                else std::cout << "Rejected a hit with " << hit.Energy << " MeV because there was " << otherE << " energy from others.\n";
+                else std::cout << "Rejected a hit with " << hit.Energy << " MeV because there was " << otherE << " MeV from others.\n";
               } //If hit has more than minimum energy
             } //Loop over box z position
           } //Loop over box y position

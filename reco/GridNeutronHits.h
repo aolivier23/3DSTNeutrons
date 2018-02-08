@@ -26,7 +26,6 @@ namespace reco
       std::vector<pers::MCHit> fHits;
     private:
       //Parameters that I will refer to
-      double fWidth; //The width in mm of each dimension of a MCHit. 
       double fEMin; //The energy threshold in MeV for creating an MCHit.  Neutrons 
                     //with less than this amount of KE are not interesting to me.   
 

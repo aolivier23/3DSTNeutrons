@@ -25,8 +25,8 @@ install(FILES MCHit.h MCCluster.h DESTINATION include/persistency)
 
 # If this is ROOT6 or later, then install the rootmap and pcm files.
 if(${ROOT_VERSION} VERSION_GREATER 6)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libedepsim.rootmap
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libpersistency.rootmap
     DESTINATION lib)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libedepsim_rdict.pcm
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libpersistency_rdict.pcm
     DESTINATION lib)
 endif(${ROOT_VERSION} VERSION_GREATER 6)

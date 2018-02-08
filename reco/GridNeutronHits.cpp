@@ -18,6 +18,7 @@
 
 //EdepNeutrons includes
 #include "reco/GridNeutronHits.h"
+#include "reco/Octree.cpp"
 #include "persistency/MCHit.h"
 #include "app/Factory.cpp"
 
@@ -91,165 +92,11 @@ namespace
 
     return shape.DistFromOutside(posArr, dirArr);
   }
-
-  //(Improved?) geometry algorithm:
-  //Split space into octants around the interaction vertex.  
-  //Determine whether a point is in an octant by asking 3 questions: 
-  //Is your (X, Y, Z) < Center.(X, Y, Z)?
-  //Assuming boundary group is small, when looking for hit segments in same MCHit, look 
-  //only at own octant plus boundary group.  Could make boundary group for each hemisphere if 
-  //needed.  
-  //
-  //If still too many entries, could subdivide again.  Could probably subdivide each octant individually until 
-  //few enough hit segments in group.   
-
-  //TODO: Probably terrible object design
-  //TODO: If I plan to stick with this class, make std::list<TG4HitSegment> a template parameter and move this to its' own header.
-
-  //Classes for custom geometry sorting algorithm.  
-  class ZHemisphere
-  {
-    public:
-      ZHemisphere(const TVector3& center): Center(center) {}
-      virtual ~ZHemisphere() = default;
-                                                                                                                                                            
-      TVector3 Center;
-                                                                                                                                                            
-      virtual std::pair<TVector3, std::list<TG4HitSegment>>& operator [](const TVector3& pos) = 0;
-      virtual size_t size() const = 0;
-      virtual TG4HitSegment& first() = 0;
-  };
-   
-  class YHemisphere
-  {
-    public:
-      YHemisphere(const TVector3& center, const double width, const int subdiv);
-   
-      virtual ~YHemisphere() = default;  
-                                                                                                                                                            
-      TVector3 Center;
-      std::unique_ptr<ZHemisphere> Plus;
-      std::unique_ptr<ZHemisphere> Minus;
-  
-      virtual std::pair<TVector3, std::list<TG4HitSegment>>& operator [](const TVector3& pos)
-      {
-        return (pos.Y() < Center.Y())?(*Minus)[pos]:(*Plus)[pos];
-      }
-
-      size_t size() const
-      {
-        return Plus->size()+Minus->size();
-      }
-
-      TG4HitSegment& first()
-      {
-        if(Plus->size() > 0) return Plus->first();
-        return Minus->first();
-      }
-  };
-
-  class XHemisphere
-  {
-    public:
-      XHemisphere(const TVector3& center, const double width, const int subdiv): Center(center), Plus(center+TVector3(width/2., 0., 0.), width, subdiv), 
-                                                                                 Minus(center-TVector3(width/2., 0., 0.), width, subdiv) {};
-      virtual ~XHemisphere() = default;
-  
-      TVector3 Center;
-      YHemisphere Plus;
-      YHemisphere Minus;
-  
-      std::pair<TVector3, std::list<TG4HitSegment>>& operator [](const TVector3& pos)
-      {
-        return (pos.X() < Center.X())?Minus[pos]:Plus[pos];
-      }
-
-      size_t size() const
-      {
-        return Plus.size()+Minus.size();
-      }
-
-      TG4HitSegment& first()
-      {
-        if(Plus.size() > 0) return Plus.first();
-        return Minus.first();
-      }
-  };
-
-  //The final Z hemisphere.  Breaks the recursive operator [] calls.
-  class ZEnd: public ZHemisphere
-  {
-    public:
-      ZEnd(const TVector3& center): ZHemisphere(center), Plus(), Minus() {}      
-      virtual ~ZEnd() = default;
-
-      std::pair<TVector3, std::list<TG4HitSegment>> Plus;
-      std::pair<TVector3, std::list<TG4HitSegment>> Minus;
-
-      virtual std::pair<TVector3, std::list<TG4HitSegment>>& operator [](const TVector3& pos)
-      {
-        return (pos.Z() < Center.Z())?Minus:Plus;
-      }
-
-      virtual size_t size() const
-      {
-        return Plus.second.size()+Minus.second.size();
-      }
-
-      virtual TG4HitSegment& first()
-      {
-        if(Plus.second.size() > 0) return *(Plus.second.begin());
-        return *(Minus.second.begin());
-      }
-  };
-
-  //Subdivide again!  Hardcoding two subdivisions max in the constructor for now.
-  class  ZMore: public ZHemisphere
-  {
-    public:
-      ZMore(const TVector3& center, const double width, const int subdiv): ZHemisphere(center), Plus(center+TVector3(0., 0., width/2.), width/2., subdiv-1), 
-                                                                           Minus(center-TVector3(0., 0., width/2.), width/2., subdiv-1) {} 
-      ZMore() = delete;
-      virtual ~ZMore() = default;
-  
-      XHemisphere Plus;
-      XHemisphere Minus;
-  
-      virtual std::pair<TVector3, std::list<TG4HitSegment>>& operator [](const TVector3& pos)
-      {
-        return (pos.Z() < Center.Z())?Minus[pos]:Plus[pos];
-      }
-
-      virtual size_t size() const
-      {
-        return Plus.size()+Minus.size();
-      }
-
-      virtual TG4HitSegment& first()
-      {
-        if(Plus.size() > 0) return Plus.first();
-        return Minus.first();
-      }
-  };
-
-  YHemisphere::YHemisphere(const TVector3& center, const double width, const int subdiv): Center(center), Plus(), Minus()
-  {
-    if(subdiv > 0)
-    {
-      Plus.reset(new ZMore(center+TVector3(0., width/2., 0.), width, subdiv));
-      Minus.reset(new ZMore(center+TVector3(0., width/2., 0.), width, subdiv));
-    }
-    else
-    {
-      Plus.reset(new ZEnd(center+TVector3(0., width/2., 0.)));
-      Minus.reset(new ZEnd(center+TVector3(0., width/2., 0.)));
-    }
-  };
 }
 
 namespace reco
 {
-  GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(100.), fEMin(2.)
+  GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fEMin(2.)
   {
     //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
     //      reconfigure from opt::Options after Parse() was called? 
@@ -260,6 +107,7 @@ namespace reco
   //Produce MCHits from TG4HitSegments descended from FS neutrons above threshold
   bool GridNeutronHits::DoReconstruct() 
   {
+    std::cout << "Entering GridNeutronHits::DoReconstruct()\n";
     //Get rid of the previous event's MCHits
     fHits.clear();
 
@@ -282,10 +130,9 @@ namespace reco
         //else std::cout << "Primary named " << prim.Name << " with KE " << mom.E()-mom.Mag() << " is not a FS neutron.\n";
       }
     }
+    if(neutDescendIDs.empty()) return false; //If there are no neutron-descneded hits in this event, there is nothing to do.
 
-    //Get geometry information for forming MCHits
-    TGeoBBox hitBox(fWidth/2., fWidth/2., fWidth/2.);
-
+    std::cout << "Entering loop over SensDets.\n";
     //Next, find all TG4HitSegments that are descended from an interesting FS particle.  
     for(const auto& det: fEvent->SegmentDetectors) //Loop over sensitive detectors
     {
@@ -297,10 +144,10 @@ namespace reco
 
       //Group energy deposits into "subdetectors"
       const auto center = ::InGlobal(TVector3(0., 0., 0.), mat); //Find the center of this detector
-      const size_t subdiv = 7;
-      ::XHemisphere neutGeom(center, 1000, subdiv), otherGeom(center, 1000, subdiv); //Split based on the first vertex in this event.  
-                                                                                     //1000 is the half-width of the detector.  
-                                                                                     //TODO: Get half-width from TGeoBBox.  Maybe even Width TVector3?
+      Octree<pers::MCHit, 6> neutGeom(center, TVector3(1200, 1200, 1000)); //TODO: Get half-width as a TVector3 to form a box instead of a cube 
+      std::cout << "Created neutGeom.\n";
+      Octree<double, 6> otherGeom(center, TVector3(1200, 1200, 1000));
+      std::cout << "Succeeded in creating Octrees.\n";
 
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
@@ -313,56 +160,42 @@ namespace reco
           auto found = std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId);
           if(found != neutDescendIDs.end())
           {
-            neutGeom[(seg.Start+seg.Stop).Vect()*0.5].second.push_back(seg);
+            const auto center = (seg.Start+seg.Stop).Vect()*0.5; //TODO: Really, an Octree that knows to split TG4HitSegments would be ideal here
+            auto pair = neutGeom[center];
+            if(!pair.second) 
+            {
+              pair.second = new pers::MCHit();
+              pair.second->Position = TLorentzVector(pair.first.X(), pair.first.Y(), pair.first.Z(), seg.Start.T());
+            }
+
+            auto& hit = *(pair.second);
+            hit.Energy += seg.EnergyDeposit;
+            hit.TrackIDs.push_back(seg.PrimaryId);
           }
           else 
           {
-            otherGeom[(seg.Start+seg.Stop).Vect()*0.5].second.push_back(seg);
+            auto ptr = otherGeom[(seg.Start+seg.Stop).Vect()*0.5].second;
+            if(!ptr) ptr = new double();
+            auto& edep = *ptr;
+            edep += seg.EnergyDeposit;
           }
         }
       }
 
-      //Form MCHits from interesting TG4HitSegments
-      while(neutGeom.size() > 0)
-      {
-        const TG4HitSegment seed = neutGeom.first(); //Make sure this is copied and not a reference since I am about to delete it
-
-        //Remove this and replace the std::lists above where neutGeom and otherGeom are defined to not use crazy geometry algorithm.  
-        auto& pair = neutGeom[(seed.Start+seed.Stop).Vect()*0.5];
-        const auto center = pair.first; 
-        auto& neutSegs = pair.second;
-        auto& others = otherGeom[(seed.Start+seed.Stop).Vect()*0.5].second; 
-
-        pers::MCHit hit;
-        double timeAvg = 0; //Average time of this MCHit
-                            //TODO: Separate hits in time?  
-
-        const double neutE = std::accumulate(neutSegs.begin(), neutSegs.end(), 0., [&hit, &timeAvg](double val, const auto& seg) 
-                                                                                   { 
-                                                                                     hit.TrackIDs.push_back(seg.PrimaryId);
-                                                                                     timeAvg += (seg.Start.T()+seg.Stop.T())*0.5;
-                                                                                     return val+seg.EnergyDeposit; 
-                                                                                   });
-        if(neutE > fEMin)
-        {
-          const double otherE = std::accumulate(others.begin(), others.end(), 0., [&timeAvg](double val, const auto& seg) 
-                                                                                  {
-                                                                                    timeAvg += (seg.Start.T()+seg.Stop.T())*0.5;
-                                                                                    return val+seg.EnergyDeposit; 
-                                                                                  });
-  
-          if(neutE > 3.*otherE)
-          {
-            hit.Energy = neutE;
-            hit.Width = fWidth;
-            hit.Position = TLorentzVector(center.X(), center.y(), center.Z(), timeAvg/(neutSegs.size()+others.size())); 
-            fHits.push_back(hit);
-          }
-        }
-        neutSegs.clear();
-        others.clear();
-      } //While there are still neutron hits to process
+      //Write MCHits that pass cuts to this event
+      neutGeom.visitor([&otherGeom, this](const auto ptr)
+                       {
+                         if(ptr) //Ignore empty (= uninitialized) cells
+                         {
+                           auto& hit = *ptr; 
+                           double otherE = 0.;
+                           auto otherPtr = otherGeom[hit.Position.Vect()].second;
+                           if(otherPtr) otherE = *otherPtr;
+                           if(hit.Energy > 3.*otherE && hit.Energy > fEMin) this->fHits.push_back(hit);
+                         }
+                       }); 
     } //For each SensDet
+
 
     return !(fHits.empty());
   }
