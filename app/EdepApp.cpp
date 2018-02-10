@@ -76,16 +76,32 @@ int main(int argc, char** argv)
 
     //Set up to read files
     auto inFile = TFile::Open(inFiles.begin()->c_str(), "READ");
+    if(!inFile)
+    {
+      std::cerr << "Failed to open file " << inFiles.begin()->c_str() << " for reading, so quitting.\n";
+      return 1;
+    }
+
     auto inTree = (TTree*)inFile->Get("EDepSimEvents");
-    //TODO: Make sure I could actually read inFile and inTree
+    if(!inTree)
+    {
+      std::cerr << "File " << inFile->GetName() << " did not have a TTree named EDepSimEvents, so it is not an edepsim input file.\n";
+      return 2;
+    }         
 
     TTreeReader inReader(inTree);
     TTreeReaderValue<TG4Event> event(inReader, "Event");  
 
     //Create a copy of the structure of the input tree
-    TFile outFile(options["--reco-file"].c_str(), "CREATE");
+    auto outFile = TFile::Open(options["--reco-file"].c_str(), "CREATE");
+    if(!outFile)
+    { 
+      std::cerr << "Could not create a new file called " << options["--reco-file"] << " to write out reconstructed events.\n";
+      return 3;
+    }
+
     auto outTree = inTree->CloneTree(0); 
-    outTree->SetDirectory(&outFile);
+    outTree->SetDirectory(outFile);
     
     //Get reconstruction plugins
     plgn::Reconstructor::Config config;
@@ -122,12 +138,28 @@ int main(int argc, char** argv)
       else std::cerr << "Could not find Analyzer algorithm " << ana << "\n";
     }
 
-    size_t evtNum = 0;
     for(const auto& file: inFiles)
     {
       inFile = TFile::Open(file.c_str(), "READ");
+      if(!inFile) 
+      {
+        std::cerr << "Could not open file " << file << " for reading, so skipping it.\n";
+        continue;
+      }
+
       inTree = (TTree*)inFile->Get("EDepSimEvents");
+      if(!inTree)
+      {
+        std::cerr << "Could not find TTree named EDepSimEvents in " << file << ", so skipping this file.\n";
+        continue;
+      } 
+
       gGeoManager = (TGeoManager*)inFile->Get("EDepSimGeometry");
+      if(!gGeoManager)
+      {
+        std::cerr << "Could not find a TGeoManager named EDepSimGeometry in " << file << ", so skipping this file.\n";
+        continue;
+      }
 
       inTree->CopyAddresses(outTree);
       inReader.SetTree(inTree);
@@ -146,7 +178,7 @@ int main(int argc, char** argv)
         //If something was reconstructed, write to the output tree
         if(foundReco) 
         {
-          //inTree->GetEntry(entry); 
+          inTree->GetEntry(entry); //TODO: Why does this work when SetBranchStatus() doesn't?  mysteriesOfTheUniverse.push_back(this)
           outTree->Fill();
         }
 
@@ -154,15 +186,14 @@ int main(int argc, char** argv)
         for(const auto& ana: anaAlgs) ana->Analyze();
 
         if(entry%100 == 0 || entry < 100) std::cout << "Finished processing event " << entry << "\n";
-        ++evtNum;
-        if(evtNum > options.Get<size_t>("--n-events")) break; //TODO: Remove this when I'm done debugging
+        if(entry > options.Get<size_t>("--n-events")) break; 
 
         //TODO: Use gGeoManager in plugins for now, but consider retrieving TGeoManager from current file instead.  
       }
     }
    
     //Write out the reconstruced TTree.  
-    outFile.cd();
+    outFile->cd();
     outTree->Write();
 
     //Copy geometry and edepsim PassThru information from last file (?)
@@ -170,11 +201,11 @@ int main(int argc, char** argv)
     //For now, assuming that the geometry is the same in each file and the pass-thru information is an empty directory.  
     auto man = (TGeoManager*)inFile->Get("EDepSimGeometry");
     //auto passThru = (TDirectoryFile*)inFile->Get("DetSimPassThru"); //This has always been empty so far, so not copying it for now.
-    outFile.cd();
+    outFile->cd();
     man->Write();
     //passThru->Write();
     
-    outFile.Write();
+    outFile->Write(); //TODO: Is this necessary?
   }
   catch(const std::exception& e)
   {

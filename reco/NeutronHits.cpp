@@ -45,6 +45,12 @@ namespace
     return nullptr;
   }
 
+  std::ostream& operator <<(std::ostream& os, const TVector3& vec)
+  {
+    os << "(" << vec.X() << ", " << vec.Y() << ", " << vec.Z() << ")";
+    return os;
+  }
+
   //Return a TVector3 in a different coordinate system
   TVector3 InLocal(const TVector3& pos, TGeoMatrix* mat)
   {
@@ -54,28 +60,39 @@ namespace
     return TVector3(local[0], local[1], local[2]);
   }
 
+  //The opposite of InLocal
+  TVector3 InGlobal(const TVector3& pos, TGeoMatrix* mat)
+  {
+    double master[3] = {}, local[3] = {};
+    pos.GetXYZ(local);
+    mat->LocalToMaster(local, master);
+    return TVector3(master[0], master[1], master[2]);
+  }
+
   double DistFromInside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
   {
     const auto dir = (end-begin).Unit();
     double posArr[3] = {0}, dirArr[3] = {0};
-    begin.GetXYZ(posArr);
+    (begin-shapeCenter).GetXYZ(posArr);
     dir.GetXYZ(dirArr);
 
-    //Make sure dir points away from shapeCenter
-    if(dir.Dot(shapeCenter-begin) > 0)
-    {
-      dirArr[0] = -dirArr[0];
-      dirArr[1] = -dirArr[1];
-      dirArr[2] = -dirArr[2];
-    }
-
     return shape.DistFromInside(posArr, dirArr);
+  }
+
+  double DistFromOutside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
+  {
+    const auto dir = (end-begin).Unit();
+    double posArr[3] = {0}, dirArr[3] = {0};
+    (begin-shapeCenter).GetXYZ(posArr);
+    dir.GetXYZ(dirArr);
+
+    return shape.DistFromOutside(posArr, dirArr);
   }
 }
 
 namespace reco
 {
-  NeutronHits::NeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(10.), fEMin(2.)
+  NeutronHits::NeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(100.), fEMin(2.)
   {
     //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
     //      reconfigure from opt::Options after Parse() was called? 
@@ -97,88 +114,143 @@ namespace reco
     for(const auto& traj: trajs)
     {
       const auto mom = traj.InitialMomentum;
-      if(traj.Name == "neutron" && mom.E()-mom.Mag() > fEMin) Descendants(traj.TrackId, trajs, neutDescendIDs);
+      if(traj.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
+      {
+        neutDescendIDs.push_back(traj.TrackId);
+        Descendants(traj.TrackId, trajs, neutDescendIDs);
+      }
     }
 
     //Get geometry information for forming MCHits
     TGeoBBox hitBox(fWidth/2., fWidth/2., fWidth/2.);
 
     //Next, find all TG4HitSegments that are descended from an interesting FS particle.   
+    //TODO: Fiducial cut
     for(const auto& det: fEvent->SegmentDetectors) //Loop over sensitive detectors
-    {
-      std::list<TG4HitSegment> neutSegs;
+    { 
+      //Get geometry information about this detector
+      const std::string fiducial = "volA3DST_PV";
+      auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
+      auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
+
+      TVector3 center(); 
+      std::list<TG4HitSegment> neutSegs, others;
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
-        if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutSegs.push_back(seg);
+        const auto local = ::InLocal(seg.Start.Vect(), mat);
+        double arr[] = {local.X(), local.Y(), local.Z()};
+        if(shape->Contains(arr)) //Intentionally not extrapolating to the boundary.  Very reasonable to leave 
+                                 //some room before the boundary in a real detector anyway.  
+        {
+          if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutSegs.push_back(seg);
+          else others.push_back(seg);
+        }
       }
 
       //Form MCHits from interesting TG4HitSegments
       while(neutSegs.size() > 0)
       {
-        TG4HitSegment seed = *(neutSegs.begin()); //Make sure this is copied and not a reference
+        TG4HitSegment seed = *(neutSegs.begin());        
         neutSegs.erase(neutSegs.begin()); //remove the seed from the list of neutSegs so that it is not double-counted later.
 
-        //Get geometry information about this detector
-        //TODO: This won't do what I want with subvolumes of the "main" detector around.  Of course, most of this isn't needed 
-        //      with subvolumes of the main detector.
-        auto mat = ::findMat(fGeo->FindNode(seed.Start.X(), seed.Start.Y(), seed.Start.Z())->GetVolume()->GetName(), *(fGeo->GetTopNode()));
-        if(mat == nullptr) throw util::exception("Volume Not Found") << "Could not find transformation matrix for volume " << det.first << "\n";
-        
         const auto start = ::InLocal(seed.Start.Vect(), mat);
         const auto stop = ::InLocal(seed.Stop.Vect(), mat);
-        const double length = (stop-start).Mag();
 
         //Loop over fWidth-sized cubes that contain some energy from seed.
-        for(double boxX = (((int)(start.X()/fWidth))+0.5)*fWidth; boxX < stop.X(); boxX += fWidth)
+        //TODO: Count energy from non-neutron-descended particles.  
+
+        //Looping from - to + for ease of update condition, so find out which position is starting point and which is stopping point.  
+        //Note that I am potentially looping over some blocks without neutron energy deposits.  I am looping over a bounding box for this line that is 
+        //aligned with the detector's axes.  
+        const auto xCond = std::minmax({start.X(), stop.X()});
+        const auto yCond = std::minmax({start.Y(), stop.Y()});
+        const auto zCond = std::minmax({start.Z(), stop.Z()});
+        for(double boxX = (std::floor(xCond.first/fWidth)+0.5)*fWidth; boxX < (std::floor(xCond.second/fWidth)+1.0)*fWidth; boxX += fWidth)
         {
-          for(double boxY = (((int)(start.Y()/fWidth))+0.5)*fWidth; boxY < stop.Y(); boxY += fWidth)
+          for(double boxY = (std::floor(yCond.first/fWidth)+0.5)*fWidth; boxY < (std::floor(yCond.second/fWidth)+1.0)*fWidth; boxY += fWidth)
           {
-            for(double boxZ = (((int)(start.Z()/fWidth))+0.5)*fWidth; boxZ < stop.Z(); boxZ += fWidth)
+            for(double boxZ = (std::floor(zCond.first/fWidth)+0.5)*fWidth; boxZ < (std::floor(zCond.second/fWidth)+1.0)*fWidth; boxZ += fWidth)
             {
               TVector3 boxCenter(boxX, boxY, boxZ);
                 
               pers::MCHit hit;
+              hit.Energy = 0;
+              hit.TrackIDs = std::vector<int>();
+              const auto global = ::InGlobal(boxCenter, mat);
+              hit.Position = TLorentzVector(global.X(), global.Y(), global.Z(), 0.);
               hit.Width = fWidth;
-              hit.TrackIDs.push_back(seed.PrimaryId);
-              hit.Position = TLorentzVector(boxCenter.X(), boxCenter.Y(), boxCenter.Z(), seed.Start.T());
 
-              //Figure out how much of seed's energy was deposited in this box.
-              const double dist = ::DistFromInside(hitBox, start, stop, boxCenter);
-              hit.Energy = seed.EnergyDeposit*dist/length;
-
-              neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat](auto& seg)
+              size_t nContrib; //The number of segements that contributed to this hit
+              neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat, &nContrib](auto& seg)
                                  {
+                                   //Find out whether seg is in this box at all.  
+                                   if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+
                                    //Find out how much of seg's total length is inside this box
                                    const double dist = ::DistFromInside(hitBox, ::InLocal(seg.Start.Vect(), mat), 
                                                                         ::InLocal(seg.Stop.Vect(), mat), boxCenter);
             
-                                   if(dist == 0.0) return false; //If this segment is completely outside 
-                                                                 //the box that contains seed, keep it for later.
-
+                                   ++nContrib;
+                                   hit.Position += TLorentzVector(0., 0., 0., seg.Start.T()); //Add time to hit.Position.
                                    const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
                                    hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
-                                   if(dist >= length) //If this segment is entirely inside the same box as seed
+                                   if(dist > length) //If this segment is entirely inside the same box as seed
                                    {
                                      hit.Energy += seg.EnergyDeposit;
                                      return true;
                                    }
 
-                                   //Otherwise, at least part of this segment is not in the same box as seed.  Find out how much is inside.  
-                                   hit.Energy += seg.EnergyDeposit*dist/length;
- 
                                    //Set this segment's starting position to where it leaves this box.  
                                    //Prevents double-counting of some of seg's energy.
-                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();  
-                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), seg.Start.T()); 
-                                   //TODO: I think I mangled the time component of seg.Start() here
+                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();
+                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
+
+                                   hit.Energy += seg.EnergyDeposit*dist/length;
+                                   seg.EnergyDeposit = seg.EnergyDeposit*dist/length;
+ 
+                                   return false;
+                                 }); //Looking for segments in the same box
+
+              //Make hit.Position.T() the average time
+              hit.Position.SetT(hit.Position.T()/nContrib);
+
+              if(hit.Energy > fEMin) 
+              {
+                //Now, look for energy from segments of non-neutron-descended particles
+                double otherE = 0.;
+                others.remove_if([&otherE, &hitBox, &boxCenter, mat](auto& seg)
+                                 {
+                                   if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+
+                                   //Find out how much of seg's total length is inside this box
+                                   const double dist = ::DistFromInside(hitBox, ::InLocal(seg.Start.Vect(), mat), 
+                                                                        ::InLocal(seg.Stop.Vect(), mat), boxCenter);
+
+                                   const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
+                                   if(dist > length) //If this segment is entirely inside the same box as seed
+                                   {
+                                     otherE += seg.EnergyDeposit;
+                                     return true;
+                                   }
+ 
+                                   //Set this segment's starting position to where it leaves this box.
+                                   //Prevents double-counting of some of seg's energy.
+                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();
+                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
+
+                                   otherE += seg.EnergyDeposit*dist/length;
+                                   seg.EnergyDeposit = seg.EnergyDeposit*dist/length;
 
                                    return false;
                                  }); //Looking for segments in the same box
 
-              if(hit.Energy > fEMin) fHits.push_back(hit);
+                if(hit.Energy > 3.*otherE) fHits.push_back(hit);
+                else std::cout << "Rejected a hit with " << hit.Energy << " MeV because there was " << otherE << " MeV from others.\n";
+              } //If hit has more than minimum energy
             } //Loop over box z position
           } //Loop over box y position
         } //Loop over box x position
+        //TODO: Remove what is left of seed from the list of neutron hits.  
       } //While there are still netries in neutSegs
     } //For each SensDet
 
