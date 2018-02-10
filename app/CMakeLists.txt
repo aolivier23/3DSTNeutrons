@@ -8,7 +8,6 @@ link_directories( "${EDEP_DIR}/lib" )
 
 #Get util library
 #TODO: Make util a real package so I don't need to do this
-set( UTIL_DIR "/dune/app/users/aolivier/nd_neutrons/util")
 include_directories( "${UTIL_DIR}/src" )
 link_directories("${UTIL_DIR}/lib" )
 
