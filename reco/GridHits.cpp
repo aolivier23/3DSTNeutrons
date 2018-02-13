@@ -116,11 +116,18 @@ namespace
 
     return shape.DistFromOutside(posArr, dirArr);
   }
+
+  bool Contains(const TGeoShape& shape, const TVector3& point, const TVector3& shapeCenter)
+  {
+    const auto diff = point-shapeCenter;
+    double arr[] = {diff.X(), diff.Y(), diff.Z()};
+    return shape.Contains(arr);
+  }
 }
 
 namespace reco
 {
-  GridHits::GridHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(10.), fEMin(1e-2)
+  GridHits::GridHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(10.), fEMin(2.)
   {
     //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
     //      reconfigure from opt::Options after Parse() was called? 
@@ -176,24 +183,49 @@ namespace reco
               for(double boxZ = (std::floor(zCond.first/fWidth)+0.5)*fWidth; boxZ < (std::floor(zCond.second/fWidth)+1.0)*fWidth; boxZ += fWidth)
               {
                 TVector3 boxCenter(boxX, boxY, boxZ);
+                 
+                ::Triple pos(std::lrint(boxX/fWidth-0.5), std::lrint(boxY/fWidth-0.5), std::lrint(boxZ/fWidth-0.5)); 
+                //std::lrint rounds to the nearest integer and casts (hopefully correctly) to that integer.
+                auto& hit = hits[pos];
+                double dist = -1.;
 
                 //Find out how much of seg's total length is inside this box
-                //if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) <= 0.0) //TODO: This doesn't work 
-                                                                                                                                     //like I expect.  
-                //{
-                  ::Triple pos(std::lrint(boxX/fWidth-0.5), std::lrint(boxY/fWidth-0.5), std::lrint(boxZ/fWidth-0.5)); 
-                  //std::lrint rounds to the nearest integer and casts (hopefully correctly) to that integer.
-                  auto& hit = hits[pos];
-                  std::cout << "Before adding to it, hit.Energy is " << hit.Energy << "\n";
-                  const double dist = ::DistFromInside(hitBox, ::InLocal(seg.Start.Vect(), mat),
-                                                       ::InLocal(seg.Stop.Vect(), mat), boxCenter);
+                //If this segment starts or ends inside this hitBox, I need to use DistFromInside() directly.  
+                //Otherwise, I need to use DistFromOutside() with both the start and end point to find the distance travelled inside hitBox.  
+                if(::Contains(hitBox, start, boxCenter))
+                {
+                  if(::Contains(hitBox, stop, boxCenter)) //If this segment both starts and stops in hitBox
+                  {
+                    dist = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
+                  }
+                  else //Otherwise, this segment leaves hitBox.  Rely on ROOT to find how far it travels inside.
+                  {
+                    dist = ::DistFromInside(hitBox, start, stop, boxCenter);
+                  }
+                }
+                else if(::Contains(hitBox, stop, boxCenter))
+                {
+                  dist = ::DistFromInside(hitBox, stop, start, boxCenter);
+                }
+                else //This segment passes through hitBox.  So, use DistFromOutside on both sides of the box and subtract from length to get 
+                     //distance inside.  If I get a negative distance, then this segment never enters hitBox to begin with.  
+                {
+                  dist = ::DistFromOutside(hitBox, start, stop, boxCenter); //distance from starting point to entering box
+                  dist += ::DistFromOutside(hitBox, stop, start, boxCenter); //distance from stopping point to entering box (in reverse direction)
 
+                  //Computed everything "in place" (almost certainly doesn't matter anyway).  Now, set dist for real. 
+                  dist = (seg.Stop.Vect()-seg.Start.Vect()).Mag()-dist;
+                } //If seg is inside this box (it doesn't have to be)
+
+                if(dist > 0)
+                {
                   hit.Time += seg.Start.T(); //Add time for average time at end
                   ++hit.NContrib;
                   const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
-                  hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
-                  if(dist < length) hit.Energy += seg.EnergyDeposit*dist/length;
-                //} //If seg is inside this box (it doesn't have to be)
+                  hit.TrackIDs.push_back(seg.PrimaryId);
+                  if(dist <= length+1e-5) hit.Energy += seg.EnergyDeposit*dist/length; //TODO: remove sanity check on distance
+                  else std::cerr << "Got distance inside hitBox that is greater than this segment's length!  dist is: " << dist << "\nlength is: " << length << "\n";
+                }
               } //Loop over x positions on this segment
             } //Loop over y positions on this segment
           } //Loop over z positions on this segment
@@ -208,7 +240,7 @@ namespace reco
       const auto& hit = pair.second;
       
       //Reconstitute hit position
-      const TVector3 pos(key.First*fWidth+0.5, key.Second*fWidth+0.5, key.Third*fWidth+0.5);
+      const TVector3 pos((key.First+0.5)*fWidth, (key.Second+0.5)*fWidth, (key.Third+0.5)*fWidth);
       const auto global = ::InGlobal(pos, mat);
 
       pers::MCHit out;
@@ -235,5 +267,6 @@ namespace reco
       }
     }
   }*/
+
   REGISTER_PLUGIN(GridHits, plgn::Reconstructor);
 }

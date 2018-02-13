@@ -14,13 +14,22 @@ set( CMAKE_CXX_FLAGS_RELEASE "-O2" )
 #TODO: Does this cause problems if I relocate libraries like edepsim?  If I can just set LD_LIBRARY_PATH as a 
 #      fallback, then put this back in.  Otherwise, remove RPATH stuff so that this package can be relocated to 
 #      grid nodes.  
-#Really!?!  Why is this a thing?
 #Force CMake to link paths "correctly".  See the discussion at https://cmake.org/pipermail/cmake/2011-June/044807.html
 #SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
 #SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+#Write a setup script to set LD_LIBRARY_PATH based on the location of this script.
+file(WRITE "setup.sh" "export LD_LIBRARY_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../lib:\${LD_LIBRARY_PATH}\n\"")
+#TODO: Handle absolute paths to bash script correctly by not adding pwd.
+#file(WRITE  "setup.sh" "BIN_DIR=`dirname \$BASH_SOURCE`\n")
+#file(APPEND "setup.sh" "if [[\$BIN_DIR != /*]]\n")
+#file(APPEND "setup.sh" "then BIN_DIR=`pwd`/\$BIN_DIR\n")
+#file(APPEND "setup.sh" "fi\n")
+#file(APPEND "setup.sh" "export LD_LIBRARY_PATH=`pwd`/`dirname $BASH_SOURCE`/../lib\n")
+install(FILES "setup.sh" DESTINATION bin)
 
 #Set up to build against ROOT
 #I learned how to do this here: https://root.cern.ch/how/integrate-root-my-project-cmake

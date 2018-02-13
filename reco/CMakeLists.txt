@@ -4,7 +4,8 @@ include_directories( "${EDEP_DIR}/include/edep-sim" )
 link_directories( "${EDEP_DIR}/lib" )
 
 #Get util library
-include_directories( "${UTIL_DIR}/src" )
+message( "Including util library from ${UTIL_DIR}\n" )
+include_directories( "${UTIL_DIR}/include" )
 link_directories("${UTIL_DIR}/lib" )
 
 #Add libraries of plugins
