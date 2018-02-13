@@ -28,9 +28,6 @@ namespace reco
       double fWidth; //The width in mm of each dimension of a MCHit. 
       double fEMin; //The energy threshold in MeV for creating an MCHit.  Neutrons 
                     //with less than this amount of KE are not interesting to me.   
-
-      //Internal functions
-      void Descendants(const int& parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const;
   };
 }
 

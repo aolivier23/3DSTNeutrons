@@ -5,6 +5,7 @@
 //EDepNeutrons includes
 #include "app/Factory.cpp"
 #include "reco/MergedClusters.h"
+#include "reco/alg/GeoFunc.h"
 
 //ROOT includes
 #include "TGeoMatrix.h"
@@ -12,38 +13,6 @@
 #include "TGeoVolume.h"
 #include "TGeoNode.h"
 #include "TGeoManager.h"
-
-namespace
-{
-  //TODO: If I am going to reuse these, put them into a class or at least a common header
-  //Return the product of the matrices from the node with a volume called name with all of its' ancestors.
-  TGeoMatrix* findMat(const std::string& name, TGeoNode& parent)
-  {
-    if(std::string(parent.GetVolume()->GetName()) == name) return parent.GetMatrix();
-    auto children = parent.GetNodes();
-    for(auto child: *children)
-    {
-      auto node = (TGeoNode*)child;
-      auto result = findMat(name, *node);
-      if(result)
-      {
-        auto retVal = new TGeoHMatrix(*(parent.GetMatrix()));
-        retVal->Multiply(result);
-        return retVal;
-      }
-    }
-    return nullptr;
-  }
-
-  //Return a TVector3 in a different coordinate system
-  TVector3 InLocal(const TVector3& pos, TGeoMatrix* mat)
-  {
-    double master[3] = {}, local[3] = {};
-    pos.GetXYZ(master);
-    mat->MasterToLocal(master, local);
-    return TVector3(local[0], local[1], local[2]);
-  }
-}
 
 namespace reco
 {
@@ -60,7 +29,7 @@ namespace reco
     std::vector<std::pair<pers::MCCluster, std::vector<pers::MCHit>>> clusterToHit;
 
     const std::string fiducial = "volA3DST_PV";
-    auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
+    auto mat = geo::findMat(fiducial, *(fGeo->GetTopNode()));
     auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
 
     //Get a list of MCHits that are in the fiducial volume

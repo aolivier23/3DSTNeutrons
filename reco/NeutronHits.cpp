@@ -20,73 +20,18 @@
 #include "reco/NeutronHits.h"
 #include "persistency/MCHit.h"
 #include "app/Factory.cpp"
+#include "alg/TruthFunc.h"
+#include "reco/alg/GeoFunc.h"
 
 //c++ includes
 #include <set>
 
 namespace
 {
-  //Return the product of the matrices from the node with a volume called name with all of its' ancestors.
-  TGeoMatrix* findMat(const std::string& name, TGeoNode& parent)
-  {
-    if(std::string(parent.GetVolume()->GetName()) == name) return parent.GetMatrix();
-    auto children = parent.GetNodes();
-    for(auto child: *children)
-    {
-      auto node = (TGeoNode*)child;
-      auto result = findMat(name, *node);
-      if(result) 
-      {
-        auto retVal = new TGeoHMatrix(*(parent.GetMatrix()));
-        retVal->Multiply(result);
-        return retVal;
-      }
-    }
-    return nullptr;
-  }
-
   std::ostream& operator <<(std::ostream& os, const TVector3& vec)
   {
     os << "(" << vec.X() << ", " << vec.Y() << ", " << vec.Z() << ")";
     return os;
-  }
-
-  //Return a TVector3 in a different coordinate system
-  TVector3 InLocal(const TVector3& pos, TGeoMatrix* mat)
-  {
-    double master[3] = {}, local[3] = {};
-    pos.GetXYZ(master);
-    mat->MasterToLocal(master, local);
-    return TVector3(local[0], local[1], local[2]);
-  }
-
-  //The opposite of InLocal
-  TVector3 InGlobal(const TVector3& pos, TGeoMatrix* mat)
-  {
-    double master[3] = {}, local[3] = {};
-    pos.GetXYZ(local);
-    mat->LocalToMaster(local, master);
-    return TVector3(master[0], master[1], master[2]);
-  }
-
-  double DistFromInside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
-  {
-    const auto dir = (end-begin).Unit();
-    double posArr[3] = {0}, dirArr[3] = {0};
-    (begin-shapeCenter).GetXYZ(posArr);
-    dir.GetXYZ(dirArr);
-
-    return shape.DistFromInside(posArr, dirArr);
-  }
-
-  double DistFromOutside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
-  {
-    const auto dir = (end-begin).Unit();
-    double posArr[3] = {0}, dirArr[3] = {0};
-    (begin-shapeCenter).GetXYZ(posArr);
-    dir.GetXYZ(dirArr);
-
-    return shape.DistFromOutside(posArr, dirArr);
   }
 }
 
@@ -109,15 +54,15 @@ namespace reco
     //Remember that I get fEvent and fGeo for free from the base class.  
     //First, figure out which TG4Trajectories are descendants of particles I am interested in.  
     //I am interested in primary neutrons with > 2 MeV KE.   
-    std::vector<int> neutDescendIDs; //TrackIDs of FS neutron descendants
+    std::set<int> neutDescendIDs; //TrackIDs of FS neutron descendants
     const auto trajs = fEvent->Trajectories;
     for(const auto& traj: trajs)
     {
       const auto mom = traj.InitialMomentum;
       if(traj.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
       {
-        neutDescendIDs.push_back(traj.TrackId);
-        Descendants(traj.TrackId, trajs, neutDescendIDs);
+        neutDescendIDs.insert(traj.TrackId);
+        truth::Descendants(traj.TrackId, trajs, neutDescendIDs);
       }
     }
 
@@ -130,19 +75,19 @@ namespace reco
     { 
       //Get geometry information about this detector
       const std::string fiducial = "volA3DST_PV";
-      auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
+      auto mat = geo::findMat(fiducial, *(fGeo->GetTopNode()));
       auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
 
       TVector3 center(); 
       std::list<TG4HitSegment> neutSegs, others;
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
-        const auto local = ::InLocal(seg.Start.Vect(), mat);
+        const auto local = geo::InLocal(seg.Start.Vect(), mat);
         double arr[] = {local.X(), local.Y(), local.Z()};
         if(shape->Contains(arr)) //Intentionally not extrapolating to the boundary.  Very reasonable to leave 
                                  //some room before the boundary in a real detector anyway.  
         {
-          if(std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId) != neutDescendIDs.end()) neutSegs.push_back(seg);
+          if(neutDescendIDs.count(seg.PrimaryId)) neutSegs.push_back(seg);
           else others.push_back(seg);
         }
       }
@@ -153,8 +98,8 @@ namespace reco
         TG4HitSegment seed = *(neutSegs.begin());        
         neutSegs.erase(neutSegs.begin()); //remove the seed from the list of neutSegs so that it is not double-counted later.
 
-        const auto start = ::InLocal(seed.Start.Vect(), mat);
-        const auto stop = ::InLocal(seed.Stop.Vect(), mat);
+        const auto start = geo::InLocal(seed.Start.Vect(), mat);
+        const auto stop = geo::InLocal(seed.Stop.Vect(), mat);
 
         //Loop over fWidth-sized cubes that contain some energy from seed.
         //TODO: Count energy from non-neutron-descended particles.  
@@ -176,7 +121,7 @@ namespace reco
               pers::MCHit hit;
               hit.Energy = 0;
               hit.TrackIDs = std::vector<int>();
-              const auto global = ::InGlobal(boxCenter, mat);
+              const auto global = geo::InGlobal(boxCenter, mat);
               hit.Position = TLorentzVector(global.X(), global.Y(), global.Z(), 0.);
               hit.Width = fWidth;
 
@@ -184,11 +129,11 @@ namespace reco
               neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat, &nContrib](auto& seg)
                                  {
                                    //Find out whether seg is in this box at all.  
-                                   if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+                                   if(geo::DistFromOutside(hitBox, geo::InLocal(seg.Start.Vect(), mat), geo::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
 
                                    //Find out how much of seg's total length is inside this box
-                                   const double dist = ::DistFromInside(hitBox, ::InLocal(seg.Start.Vect(), mat), 
-                                                                        ::InLocal(seg.Stop.Vect(), mat), boxCenter);
+                                   const double dist = geo::DistFromInside(hitBox, geo::InLocal(seg.Start.Vect(), mat), 
+                                                                        geo::InLocal(seg.Stop.Vect(), mat), boxCenter);
             
                                    ++nContrib;
                                    hit.Position += TLorentzVector(0., 0., 0., seg.Start.T()); //Add time to hit.Position.
@@ -220,11 +165,11 @@ namespace reco
                 double otherE = 0.;
                 others.remove_if([&otherE, &hitBox, &boxCenter, mat](auto& seg)
                                  {
-                                   if(::DistFromOutside(hitBox, ::InLocal(seg.Start.Vect(), mat), ::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+                                   if(geo::DistFromOutside(hitBox, geo::InLocal(seg.Start.Vect(), mat), geo::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
 
                                    //Find out how much of seg's total length is inside this box
-                                   const double dist = ::DistFromInside(hitBox, ::InLocal(seg.Start.Vect(), mat), 
-                                                                        ::InLocal(seg.Stop.Vect(), mat), boxCenter);
+                                   const double dist = geo::DistFromInside(hitBox, geo::InLocal(seg.Start.Vect(), mat), 
+                                                                           geo::InLocal(seg.Stop.Vect(), mat), boxCenter);
 
                                    const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
                                    if(dist > length) //If this segment is entirely inside the same box as seed
@@ -257,18 +202,5 @@ namespace reco
     return !(fHits.empty());
   }
 
-  //Put all of the descendants of parent into ids.  This is a recursive function, so be careful how you use it.  
-  void NeutronHits::Descendants(const int& parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const
-  {
-    for(const auto& traj: trajs)
-    {
-      if(traj.ParentId == parent) 
-      {
-        const int id = traj.TrackId;
-        ids.push_back(id);
-        Descendants(id, trajs, ids);
-      }
-    }
-  }
   REGISTER_PLUGIN(NeutronHits, plgn::Reconstructor);
 }

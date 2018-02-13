@@ -7,6 +7,7 @@
 //EdepNeutrons includes
 #include "reco/Reconstructor.h"
 #include "persistency/MCHit.h"
+#include "reco/alg/GridHits.h"
 
 #ifndef RECO_GRIDNEUTRONHITS_H
 #define RECO_GRIDNEUTRONHITS_H
@@ -27,10 +28,12 @@ namespace reco
     private:
       //Parameters that I will refer to
       double fEMin; //The energy threshold in MeV for creating an MCHit.  Neutrons 
-                    //with less than this amount of KE are not interesting to me.   
+                    //with less than this amount of KE are not interesting to me.  
+
+      GridHits fHitAlg; //Algorithm for grouping TG4HitSegments into MCHits 
 
       //Internal functions
-      void Descendants(const int parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const;
+      std::set<int> NeutDescend() const;
   };
 }
 

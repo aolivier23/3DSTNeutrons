@@ -5,32 +5,10 @@
 //EDepNeutrons includes
 #include "ana/NeutronCand.h"
 #include "app/Factory.cpp"
+#include "alg/TruthFunc.h"
 
 //util includes
 #include "ROOT/Base/TFileSentry.h"
-
-namespace
-{
-  //TODO: If I am going to reuse this, put it into a class or at least a common header
-  void Descendants(const int& parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids)
-  {
-    for(const auto& traj: trajs)
-    {
-      if(traj.ParentId == parent)
-      {
-        const int id = traj.TrackId;
-        ids.push_back(id);
-        Descendants(id, trajs, ids);
-      }
-    }
-  }
-
-  const TG4Trajectory& Matriarch(const TG4Trajectory& child, const std::vector<TG4Trajectory>& trajs)
-  {
-    if(child.ParentId == -1) return child;
-    return Matriarch(trajs[child.ParentId], trajs);
-  }
-}
 
 namespace ana
 {
@@ -71,10 +49,10 @@ namespace ana
         {
           //fFSNeutronEnergy->Fill(trajs[part.TrackId].InitialMomentum.E()-trajs[part.TrackId].InitialMomentum.Mag());
 
-          std::vector<int> descend;
-          Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
-          descend.push_back(part.TrackId);
-          for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId;
+          std::set<int> descend;
+          truth::Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
+          descend.insert(part.TrackId);
+          for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId; 
         }
       }
     }

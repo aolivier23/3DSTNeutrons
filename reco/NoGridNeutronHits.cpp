@@ -20,6 +20,8 @@
 #include "reco/NoGridNeutronHits.h"
 #include "persistency/MCHit.h"
 #include "app/Factory.cpp"
+#include "reco/alg/GeoFunc.h"
+#include "alg/TruthFunc.h"
 
 //c++ includes
 #include <set>
@@ -27,82 +29,6 @@
 
 namespace
 {
-  //Return the product of the matrices from the node with a volume called name with all of its' ancestors.
-  TGeoMatrix* findMat(const std::string& name, TGeoNode& parent)
-  {
-    if(std::string(parent.GetVolume()->GetName()) == name) return parent.GetMatrix();
-    auto children = parent.GetNodes();
-    for(auto child: *children)
-    {
-      auto node = (TGeoNode*)child;
-      auto result = findMat(name, *node);
-      if(result) 
-      {
-        auto retVal = new TGeoHMatrix(*(parent.GetMatrix()));
-        retVal->Multiply(result);
-        return retVal;
-      }
-    }
-    return nullptr;
-  }
-
-  //Return a TVector3 in a different coordinate system
-  TVector3 InLocal(const TVector3& pos, TGeoMatrix* mat)
-  {
-    double master[3] = {}, local[3] = {};
-    pos.GetXYZ(master);
-    mat->MasterToLocal(master, local);
-    return TVector3(local[0], local[1], local[2]);
-  }
-
-  //Return a TVector3 in a different coordinate system
-  TVector3 InGlobal(const TVector3& pos, TGeoMatrix* mat)
-  {
-    double master[3] = {}, local[3] = {};
-    pos.GetXYZ(local);
-    mat->LocalToMaster(local, master);
-    return TVector3(master[0], master[1], master[2]);
-  }
-
-  double DistFromInside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
-  {
-    const auto dir = (end-begin).Unit();
-    double posArr[3] = {0}, dirArr[3] = {0};
-    (begin-shapeCenter).GetXYZ(posArr);
-    dir.GetXYZ(dirArr);
-
-    //Make sure dir points away from shapeCenter
-    if(dir.Dot(shapeCenter-begin) > 0)
-    {
-      dirArr[0] = -dirArr[0];
-      dirArr[1] = -dirArr[1];
-      dirArr[2] = -dirArr[2];
-    }
-
-    return shape.DistFromInside(posArr, dirArr);
-  }
-
-  double DistFromOutside(const TGeoShape& shape, const TVector3& begin, const TVector3& end, const TVector3& shapeCenter)
-  {
-    const auto dir = (end-begin).Unit();
-    double posArr[3] = {0}, dirArr[3] = {0};
-    (begin-shapeCenter).GetXYZ(posArr);
-    dir.GetXYZ(dirArr);
-
-    return shape.DistFromOutside(posArr, dirArr);
-  }
-
-  /*const TG4Trajectory& Matriarch(const TG4Trajectory& child, const std::vector<TG4Trajectory>& trajs)
-  {
-    if(child.ParentId == -1) return child;
-    return Matriarch(trajs[child.ParentId], trajs);
-  } 
-
-  const TG4Trajectory& Matriarch(const TG4HitSegment& seg, const std::vector<TG4Trajectory>& trajs)
-  {
-    return Matriarch(trajs[seg.PrimaryId], trajs);
-  }*/
-
   //(Improved?) geometry algorithm:
   //Split space into octants around the interaction vertex.  
   //Determine which octant a hit segment is in by "asking" 6 questions of the form:
@@ -320,9 +246,9 @@ namespace reco
     //Remember that I get fEvent and fGeo for free from the base class.  
     //First, figure out which TG4Trajectories are descendants of particles I am interested in.  
     //I am interested in primary neutrons with > 2 MeV KE. 
-    //TODO: ::Matriarch() and Descendants() sometimes give different results!  I am not entirely convinced by the 
-    //      results of Descendants(), so trying ::Matriarch() as main method.  
-    std::vector<int> neutDescendIDs; //TrackIDs of FS neutron descendants
+    //TODO: truth::Matriarch() and Descendants() sometimes give different results!  I am not entirely convinced by the 
+    //      results of Descendants(), so trying truth::Matriarch() as main method.  
+    std::set<int> neutDescendIDs; //TrackIDs of FS neutron descendants
     const auto trajs = fEvent->Trajectories;
     const auto vertices = fEvent->Primaries;
     for(const auto& vtx: vertices)
@@ -332,8 +258,8 @@ namespace reco
         const auto mom = trajs[prim.TrackId].InitialMomentum;
         if(prim.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
         {
-          Descendants(prim.TrackId, trajs, neutDescendIDs);
-          neutDescendIDs.push_back(prim.TrackId);
+          truth::Descendants(prim.TrackId, trajs, neutDescendIDs);
+          neutDescendIDs.insert(prim.TrackId);
         }
         //else std::cout << "Primary named " << prim.Name << " with KE " << mom.E()-mom.Mag() << " is not a FS neutron.\n";
       }
@@ -361,20 +287,19 @@ namespace reco
       //Get geometry information about the detector of interest
       //TODO: This is specfic to the files I am processing right now!
       const std::string fiducial = "volA3DST_PV";
-      auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
+      auto mat = geo::findMat(fiducial, *(fGeo->GetTopNode()));
       auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
 
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
         //Simple fiducial cut.  Should really look at how much of deposit is inside the fiducial volume or something.  
         //Ideally, I'll just get edepsim to do this for me in the future by creating a volume for each scintillator block.  
-        const auto local = ::InLocal((seg.Start.Vect()+seg.Stop.Vect())*0.5, mat);
+        const auto local = geo::InLocal((seg.Start.Vect()+seg.Stop.Vect())*0.5, mat);
         double arr[] = {local.X(), local.Y(), local.Z()};
         if(shape->Contains(arr))
         {
-          //const auto primary = ::Matriarch(seg, trajs);
-          auto found = std::find(neutDescendIDs.begin(), neutDescendIDs.end(), seg.PrimaryId);
-          if(found != neutDescendIDs.end())
+          //const auto primary = truth::Matriarch(seg, trajs);
+          if(neutDescendIDs.count(seg.PrimaryId))
           {
             neutGeom[seg].push_back(seg);
           }
@@ -409,7 +334,7 @@ namespace reco
         neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat](auto& seg)
                            {
                              //Find out how much of seg's total length is inside this box
-                             const double dist = ::DistFromOutside(hitBox, seg.Start.Vect(),
+                             const double dist = geo::DistFromOutside(hitBox, seg.Start.Vect(),
                                                                    seg.Stop.Vect(), boxCenter);
                                                                                                                                           
                              if(dist > 0.0) return false; //If this segment is completely outside 
@@ -435,7 +360,7 @@ namespace reco
             const auto& seg = *otherPtr;
             //TODO: Should these be InLocal()?
             //TODO: Use result of DistFromInside to figure out how much energy is contributed.
-            if(::DistFromInside(hitBox, seg.Start.Vect(), seg.Stop.Vect(), boxCenter) > 0.0)
+            if(geo::DistFromInside(hitBox, seg.Start.Vect(), seg.Stop.Vect(), boxCenter) > 0.0)
             {
               otherE += seg.EnergyDeposit;
             }
@@ -454,20 +379,6 @@ namespace reco
     } //For each SensDet
   
     return !(fHits.empty());
-  }
-
-  //Put all of the descendants of parent into ids.  This is a recursive function, so be careful how you use it.  
-  void NoGridNeutronHits::Descendants(const int parent, const std::vector<TG4Trajectory>& trajs, std::vector<int>& ids) const
-  {
-    for(const auto& traj: trajs)
-    {
-      if(traj.ParentId == parent) 
-      {
-        const int id = traj.TrackId;
-        ids.push_back(id);
-        Descendants(id, trajs, ids);
-      }
-    }
   }
   REGISTER_PLUGIN(NoGridNeutronHits, plgn::Reconstructor);
 }

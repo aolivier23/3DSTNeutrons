@@ -1,4 +1,4 @@
-//File: NoGridNeutronHits.h
+//File: GridAllHits.h
 //Brief: A Reconstructor that reads in a TG4Event from edepsim and creates MCHits from energy deposits that were 
 //       created by ancestors of FS neutrons. Does not attempt to create MCHits only at grid points.  Instead, each 
 //       MCHit is centered around its' seed's midpoint.  
@@ -6,18 +6,19 @@
 
 //EdepNeutrons includes
 #include "reco/Reconstructor.h"
+#include "reco/alg/GridHits.h"
 #include "persistency/MCHit.h"
 
-#ifndef RECO_NOGRIDNEUTRONHITS_H
-#define RECO_NOGRIDNEUTRONHITS_H
+#ifndef RECO_GRIDALLHITS_H
+#define RECO_GRIDALLHITS_H
 
 namespace reco
 {
-  class NoGridNeutronHits: public plgn::Reconstructor
+  class GridAllHits: public plgn::Reconstructor
   {
     public:
-      NoGridNeutronHits(const plgn::Reconstructor::Config& config);
-      virtual ~NoGridNeutronHits() = default;
+      GridAllHits(const plgn::Reconstructor::Config& config);
+      virtual ~GridAllHits() = default;
 
     protected:
       virtual bool DoReconstruct() override; //Look at what is already in the tree and do your own reconstruction.
@@ -26,10 +27,13 @@ namespace reco
       std::vector<pers::MCHit> fHits;
     private:
       //Parameters that I will refer to
-      double fWidth; //The width in mm of each dimension of a MCHit. 
       double fEMin; //The energy threshold in MeV for creating an MCHit.  Neutrons 
                     //with less than this amount of KE are not interesting to me.   
+
+      GridHits fHitAlg; //Algorithm for grouping TG4HitSegments into MCHits       
+
+      //Internal functions
   };
 }
 
-#endif //RECO_NOGRIDNEUTRONHITS_H
+#endif //RECO_GRIDALLHITS_H

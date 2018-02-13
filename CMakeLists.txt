@@ -42,6 +42,7 @@ include(${ROOT_USE_FILE})
 include_directories( "${PROJECT_SOURCE_DIR}" )
 
 add_subdirectory(persistency)
+add_subdirectory(alg)
 add_subdirectory(reco)
 add_subdirectory(ana)
 add_subdirectory(app)
