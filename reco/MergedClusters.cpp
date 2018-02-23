@@ -16,7 +16,7 @@
 
 namespace reco
 {
-  MergedClusters::MergedClusters(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fClusters(), fHits(*(config.Input), "NoGridNeutronHits")
+  MergedClusters::MergedClusters(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fClusters(), fHits(*(config.Input), "GridNeutronHits")
   {
     config.Output->Branch("MergedClusters", &fClusters);
   }
@@ -33,7 +33,7 @@ namespace reco
     auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
 
     //Get a list of MCHits that are in the fiducial volume
-    //Now done in during hit-making
+    //Now done during hit-making
     /*std::list<pers::MCHit> hits(fHits.begin(), fHits.end());
     hits.remove_if([mat, shape](const auto& hit)
                   {

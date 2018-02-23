@@ -21,6 +21,8 @@ namespace pers
   class MCHit;
 }
 
+class TG4HitSegment;
+
 namespace reco
 {
   class GridHits
@@ -51,7 +53,7 @@ namespace reco
       //The data I actually need to save for each MCHit.  The constructor default goes well with std::map::operator[].
       struct HitData
       {
-        HitData(): Energy(0.), Time(0.), TrackIDs(), NContrib(0) {}
+        HitData(): Energy(0.), OtherE(0.), Time(0.), TrackIDs(), NContrib(0) {}
         virtual ~HitData() = default;
        
         double Energy;

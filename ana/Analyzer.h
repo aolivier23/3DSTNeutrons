@@ -19,6 +19,12 @@ namespace util
   class TFileSentry;
 }
 
+namespace opt
+{
+  class CmdLine;
+  class Options;
+}
+
 namespace plgn
 {
   class Analyzer
@@ -28,11 +34,13 @@ namespace plgn
       {
         util::TFileSentry* File;
         TTreeReader* Reader;
+        opt::CmdLine* CmdLine;
       };
 
       Analyzer(const Config& config);
       virtual ~Analyzer() = default;
 
+      virtual void Configure(const opt::Options& opts) {}; //Optional configuration from command line.  Default does nothing.
       void Analyze(); //Public interface to private implementation
 
     protected:

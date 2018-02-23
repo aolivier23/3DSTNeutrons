@@ -13,6 +13,8 @@
 
 //util includes
 #include "ROOT/Base/TFileSentry.h"
+#include "IO/Option/runtime/CmdLine.h"
+#include "IO/Option/runtime/Options.h"
 
 namespace plgn
 {

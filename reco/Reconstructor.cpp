@@ -10,6 +10,10 @@
 #include "TGeoManager.h"
 #include "TTreeReader.h"
 
+//util includes
+#include "IO/Option/runtime/CmdLine.h"
+#include "IO/Option/runtime/Options.h"
+
 namespace plgn
 {
   Reconstructor::Reconstructor(const Config& config): fEvent(*(config.Input), "Event"), fGeo(nullptr)

@@ -4,9 +4,6 @@
 //       Following the style of TG4 objects from Clark McGrew's edepsim.
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 
-//edepsim includes
-#include "TG4HitSegment.h"
-
 //ROOT includes
 #include <TObject.h>
 #include <TLorentzVector.h>

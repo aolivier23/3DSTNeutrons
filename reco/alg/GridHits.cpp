@@ -2,6 +2,9 @@
 //Brief: Shared algorithm to turn a collection of TG4HitSegments into MCHits.  
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 
+//edepsim includes
+#include "TG4HitSegment.h"
+
 //Include header
 #include "reco/alg/GridHits.h"
 

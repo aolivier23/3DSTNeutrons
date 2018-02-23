@@ -4,6 +4,9 @@
 
 //util includes
 #include "Base/exception.h"
+#include "IO/Option/runtime/CmdLine.h"
+#include "IO/Option/runtime/Options.h"
+#include "IO/Option/runtime/ExactlyOnce.h"
 
 //edepsim includes
 #include "TG4Trajectory.h"
@@ -28,12 +31,20 @@
 
 namespace reco
 {
-  GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(10.), fEMin(1.5)
+  GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fEMin(1.5), fNeighborDist(2), fHitAlg(nullptr)
   {
-    //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
-    //      reconfigure from opt::Options after Parse() was called? 
-
     config.Output->Branch("GridNeutronHits", &fHits);
+
+    config.CmdLine->AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
+    config.CmdLine->AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
+    config.CmdLine->AddKey("--neighbor-cut", "Disable cut that requires no nearby energy deposits.", "2");
+  }
+
+  void GridNeutronHits::Configure(const opt::Options& opts)
+  {
+    fEMin = opts.Get<double>("--E-min");
+    fHitAlg.reset(new GridHits(opts.Get<double>("--cube-size")));
+    fNeighborDist = opts.Get<size_t>("--neighbor-cut");
   }
 
   //Produce MCHits from TG4HitSegments descended from FS neutrons above threshold
@@ -44,14 +55,14 @@ namespace reco
 
     //Get geometry information about this detector
     const std::string fiducial = "volA3DST_PV";
-    auto mat = findMat(fiducial, *(fGeo->GetTopNode()));
+    auto mat = geo::findMat(fiducial, *(fGeo->GetTopNode()));
     auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
                                                                                                                          
     //Form MCHits from all remaining hit segments
     //First, create a sparse vector of MCHits to accumulate energy in each cube.  But that's a map, you say!  
     //std::map is a more memory-efficient way to implement a sparse vector than just a std::vector with lots of blank 
     //entries.  Think of the RAM needed for ~1e7 MCHits in each event!  
-    std::map<::Triple, ::HitData> hits;
+    std::map<GridHits::Triple, GridHits::HitData> hits;
                                                                                                                          
     //Set up to determine whether each TG4HitSegment came from a neutron 
     const auto neutDescendIDs = NeutDescend();
@@ -63,13 +74,12 @@ namespace reco
       for(const auto& seg: det.second)
       {
         //Fiducial cut
-        const auto start = ::InLocal(seg.Start.Vect(), mat);
-        const auto stop = ::InLocal(seg.Stop.Vect(), mat);
+        const auto start = geo::InLocal(seg.Start.Vect(), mat);
+        const auto stop = geo::InLocal(seg.Stop.Vect(), mat);
         double arr[] = {start.X(), start.Y(), start.Z()};
-        const bool isNeut = neutDescendIDs.count(seg.PrimaryId); //Was this energy deposit produced by the descendant of a neutron?
         if(shape->Contains(arr)) 
         {
-          fHitAlg.MakeHitData(seg, hits, mat, [&neutDescendIDs](const auto& seg){ return neutDescendIDs.count(seg.PrimarId); });
+          fHitAlg->MakeHitData(seg, hits, mat, [&neutDescendIDs](const auto& seg){ return !(neutDescendIDs.count(seg.PrimaryId)); });
         } //If this hit segment is in the fiducial volume
       } //Loop over all hit segments in this sensitive detector 
     } //For each sensitive detector
@@ -77,18 +87,22 @@ namespace reco
     //Save the hits created if they have a large enough majority of neutron energy
     for(const auto& pair: hits)
     {
-      const auto out = fHitAlg.MakeHit(pair, mat)
-      if(out.Energy > fEMin && hit.NeutronE > (hit.Energy-hit.NeutronE)*3.) fHits.push_back(out); 
+      const auto out = fHitAlg->MakeHit(pair, mat);
+      const auto& hit = pair.second;
+      if(hit.Energy > fEMin && hit.Energy > 4.*hit.OtherE) 
+      {
+        if(Neighbors(pair, hits, fNeighborDist)) fHits.push_back(out); //Look for adjacent neighbors
+      }
     }
 
     return !(fHits.empty());
   }
 
-  std::set<int> NeutDescend() const
+  std::set<int> GridNeutronHits::NeutDescend()
   {
     std::set<int> neutDescendIDs; //TrackIDs of FS neutron descendants
-    const auto trajs = fEvent->Trajectories;
-    const auto vertices = fEvent->Primaries;
+    const auto& trajs = fEvent->Trajectories;
+    const auto& vertices = fEvent->Primaries;
     for(const auto& vtx: vertices)
     {
       for(const auto& prim: vtx.Particles)
@@ -103,6 +117,29 @@ namespace reco
       }
     }
     return neutDescendIDs;
+  }
+
+  //TODO: I *could* unwrap these loops at compile-time, but I don't see a good reason to put in that much effort just yet.  
+  bool GridNeutronHits::Neighbors(const std::pair<GridHits::Triple, GridHits::HitData>& cand, 
+                                  const std::map<GridHits::Triple, GridHits::HitData>& hits, const size_t nCubes) const
+  {
+    auto key = cand.first;
+    for(int xOff = -(int)nCubes; xOff < (int)nCubes+1; ++xOff)
+    {
+      for(int yOff = -(int)nCubes; yOff < (int)nCubes+1; ++yOff)
+      {
+        for(int zOff = -(int)nCubes; zOff < (int)nCubes+1; ++zOff)
+        {
+          auto offPos = key;
+          offPos.First += xOff;
+          offPos.Second += yOff;
+          offPos.Third += zOff;
+          auto found = hits.find(offPos);
+          if(found != hits.end() && found->second.Energy > fEMin && !(found->second.Energy > 4.*found->second.OtherE)) return false;
+        }
+      }
+    }
+    return true;
   }
 
   REGISTER_PLUGIN(GridNeutronHits, plgn::Reconstructor);

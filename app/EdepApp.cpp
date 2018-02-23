@@ -40,10 +40,11 @@
 //c++ includes
 #include <iostream>
 
-namespace
+int main(int argc, char** argv)
 {
-  const opt::Options readCmdLine(int argc, char** argv)
-  { 
+  try
+  {
+    //Read command line for application options.  Ignore keys that weren't requested for now since plugins might want them.  
     opt::CmdLine cmdLine("Runs reconstruction and analysis plugins over the entries in edepsim input files.  Plugins have the opportunity "
                          "to request additional objects not in normal edepsim TTrees.");
     cmdLine.AddKey("--regex", "Regular expression for files to read.");
@@ -54,21 +55,10 @@ namespace
     cmdLine.AddKey("--reco-file", "The name of the file to which the reconstructed TTree will be saved.");
     cmdLine.AddKey("--n-events", "The maximum number of events to process.", "-1");
 
-    const auto options = cmdLine.Parse(argc, argv);
-
+    const auto options = cmdLine.Parse(argc, argv, false); //Do not throw exceptions on unrecognized options because plugins will get a chance to claim them.
 
     //Print out the command line so this job can be repeated easily
     opt::PrintCmdLine(argc, argv, options["--reco-file"]);
-    return options;
-  }
-}
-
-int main(int argc, char** argv)
-{
-  try
-  {
-    //Read command line
-    const auto options = ::readCmdLine(argc, argv);
 
     //Parameters from the command line
     const auto inFiles = util::RegexFilesPath<std::string>(options["--regex"], options["--path"]);
@@ -107,6 +97,7 @@ int main(int argc, char** argv)
     plgn::Reconstructor::Config config;
     config.Input = &inReader;
     config.Output = outTree;
+    config.CmdLine = &cmdLine;
 
     auto& recoFactory = plgn::Factory<plgn::Reconstructor>::instance();
     const auto recos = options.Get<std::vector<std::string>>("--reco");
@@ -126,6 +117,7 @@ int main(int argc, char** argv)
     plgn::Analyzer::Config anaConfig;
     anaConfig.File = &anaFile;
     anaConfig.Reader = &inReader;
+    anaConfig.CmdLine = &cmdLine;
 
     auto& anaFactory = plgn::Factory<plgn::Analyzer>::instance();
     const auto anas = options.Get<std::vector<std::string>>("--ana");
@@ -138,8 +130,15 @@ int main(int argc, char** argv)
       else std::cerr << "Could not find Analyzer algorithm " << ana << "\n";
     }
 
+    //Now that plugins have requested their options from the command line, parse it AGAIN.  This 
+    //time, throw on unknown keys. 
+    const auto& plgnOptions = cmdLine.Parse(argc, argv);
+    for(const auto& reco: recoAlgs) reco->Configure(plgnOptions);
+    for(const auto& ana: anaAlgs) ana->Configure(plgnOptions); 
+
     for(const auto& file: inFiles)
     {
+      if(inFile) delete inFile; //Make sure previous file is closed.  
       inFile = TFile::Open(file.c_str(), "READ");
       if(!inFile) 
       {
