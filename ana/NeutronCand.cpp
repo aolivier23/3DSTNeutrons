@@ -9,10 +9,25 @@
 
 //util includes
 #include "ROOT/Base/TFileSentry.h"
+#include "IO/Option/runtime/CmdLine.h"
+#include "IO/Option/runtime/Options.h"
+#include "IO/Option/runtime/ExactlyOnce.h"
+
+namespace plgn
+{
+  //Register command line options
+  template <>
+  void RegCmdLine<ana::NeutronCand>(opt::CmdLine& opts)
+  {
+    opts.AddKey("--cluster-alg", "Name of the branch of pers::MClusters to analyze.  Usually the name of the cluster-making algorithm.", "MergedClusters");
+    opts.AddKey("--E-min", "Minimum energy for a FS neutron to be plotted.  Should match hit-making and cluster-making algorithms.", "2.0");
+  }
+}
 
 namespace ana
 {
-  NeutronCand::NeutronCand(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fClusters(*(config.Reader), "MergedClusters"), fMinEnergy(2.0)
+  NeutronCand::NeutronCand(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fClusters(*(config.Reader), (*(config.Options))["--cluster-alg"].c_str()), 
+                                                                  fMinEnergy(config.Options->Get<double>("--E-min"))
   {
     fCandidateEnergy = config.File->make<TH1D>("CandidateEnergy", "Energy Specturm of Neutron Candidates;Energy [MeV];Events",
                                                150, 0, 1000);
@@ -60,6 +75,9 @@ namespace ana
     const double vtxBoxWidth = 10.;
     fNCand->Fill(std::count_if(fClusters.begin(), fClusters.end(), [&vtxBoxWidth, &TrackIDsToFS, &trajs](const auto& cand)
                                                                    {
+                                                                     //TODO: GridNeutronHits puts non-neutron stuff in TrackIDs right now!  
+                                                                     //      The next line would then put "junk" in TrackIDsToFS.  I should 
+                                                                     //      either update GridNeutronHits or use std::map::find() here.  
                                                                      const auto& neutron = trajs[TrackIDsToFS[cand.TrackIDs.front()]];
                                                                      const auto vtxDiff = (cand.Position - neutron.Points[0].Position).Vect();
                                                                      return (vtxDiff.X() > vtxBoxWidth && 

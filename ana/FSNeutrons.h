@@ -25,6 +25,9 @@ namespace ana
       virtual void DoAnalyze() override;
 
       TH1D* fNeutronEnergy; //Histogram of FS neutron energy
+
+      //Command line parameters
+      double fEMin; //Energy required for an FS neutron to be plotted
   };
 }
 

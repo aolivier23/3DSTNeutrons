@@ -34,13 +34,12 @@ namespace plgn
       {
         util::TFileSentry* File;
         TTreeReader* Reader;
-        opt::CmdLine* CmdLine;
+        const opt::Options* Options;
       };
 
       Analyzer(const Config& config);
       virtual ~Analyzer() = default;
 
-      virtual void Configure(const opt::Options& opts) {}; //Optional configuration from command line.  Default does nothing.
       void Analyze(); //Public interface to private implementation
 
     protected:

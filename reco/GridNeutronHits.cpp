@@ -29,23 +29,29 @@
 //c++ includes
 #include <set>
 
+
+namespace plgn
+{
+  //Set up command line parsing
+  template <>
+  void RegCmdLine<reco::GridNeutronHits>(opt::CmdLine& opts)
+  {
+    opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
+    opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
+    opts.AddKey("--neighbor-cut", "Disable cut that requires no nearby energy deposits.", "2");
+  }
+}
+
 namespace reco
 {
-  GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fEMin(1.5), fNeighborDist(2), fHitAlg(nullptr)
+  GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), 
+                                                                               fHitAlg(config.Options->Get<double>("--cube-size"))
   {
     config.Output->Branch("GridNeutronHits", &fHits);
-
-    config.CmdLine->AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
-    config.CmdLine->AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
-    config.CmdLine->AddKey("--neighbor-cut", "Disable cut that requires no nearby energy deposits.", "2");
-  }
-
-  void GridNeutronHits::Configure(const opt::Options& opts)
-  {
-    fEMin = opts.Get<double>("--E-min");
-    fHitAlg.reset(new GridHits(opts.Get<double>("--cube-size")));
-    fNeighborDist = opts.Get<size_t>("--neighbor-cut");
-  }
+    
+    fEMin = config.Options->Get<double>("--E-min");
+    fNeighborDist = config.Options->Get<size_t>("--neighbor-cut");
+  } 
 
   //Produce MCHits from TG4HitSegments descended from FS neutrons above threshold
   bool GridNeutronHits::DoReconstruct() 
@@ -79,7 +85,7 @@ namespace reco
         double arr[] = {start.X(), start.Y(), start.Z()};
         if(shape->Contains(arr)) 
         {
-          fHitAlg->MakeHitData(seg, hits, mat, [&neutDescendIDs](const auto& seg){ return !(neutDescendIDs.count(seg.PrimaryId)); });
+          fHitAlg.MakeHitData(seg, hits, mat, [&neutDescendIDs](const auto& seg){ return !(neutDescendIDs.count(seg.PrimaryId)); });
         } //If this hit segment is in the fiducial volume
       } //Loop over all hit segments in this sensitive detector 
     } //For each sensitive detector
@@ -87,7 +93,7 @@ namespace reco
     //Save the hits created if they have a large enough majority of neutron energy
     for(const auto& pair: hits)
     {
-      const auto out = fHitAlg->MakeHit(pair, mat);
+      const auto out = fHitAlg.MakeHit(pair, mat);
       const auto& hit = pair.second;
       if(hit.Energy > fEMin && hit.Energy > 4.*hit.OtherE) 
       {

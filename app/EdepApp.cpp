@@ -55,7 +55,13 @@ int main(int argc, char** argv)
     cmdLine.AddKey("--reco-file", "The name of the file to which the reconstructed TTree will be saved.");
     cmdLine.AddKey("--n-events", "The maximum number of events to process.", "-1");
 
-    const auto options = cmdLine.Parse(argc, argv, false); //Do not throw exceptions on unrecognized options because plugins will get a chance to claim them.
+    //Get command line options specified by plugins at compile-time.
+    auto& recoFactory = plgn::Factory<plgn::Reconstructor>::instance();
+    recoFactory.RegCmdLine(cmdLine);
+    auto& anaFactory = plgn::Factory<plgn::Analyzer>::instance();
+    anaFactory.RegCmdLine(cmdLine);
+
+    const auto options = cmdLine.Parse(argc, argv);
 
     //Print out the command line so this job can be repeated easily
     opt::PrintCmdLine(argc, argv, options["--reco-file"]);
@@ -97,9 +103,8 @@ int main(int argc, char** argv)
     plgn::Reconstructor::Config config;
     config.Input = &inReader;
     config.Output = outTree;
-    config.CmdLine = &cmdLine;
+    config.Options = &options;
 
-    auto& recoFactory = plgn::Factory<plgn::Reconstructor>::instance();
     const auto recos = options.Get<std::vector<std::string>>("--reco");
     std::vector<std::unique_ptr<plgn::Reconstructor>> recoAlgs;
     for(const auto& reco: recos)
@@ -117,9 +122,8 @@ int main(int argc, char** argv)
     plgn::Analyzer::Config anaConfig;
     anaConfig.File = &anaFile;
     anaConfig.Reader = &inReader;
-    anaConfig.CmdLine = &cmdLine;
+    anaConfig.Options = &options;
 
-    auto& anaFactory = plgn::Factory<plgn::Analyzer>::instance();
     const auto anas = options.Get<std::vector<std::string>>("--ana");
     std::vector<std::unique_ptr<plgn::Analyzer>> anaAlgs;
     for(const auto& ana: anas)
@@ -129,12 +133,6 @@ int main(int argc, char** argv)
       if(anaAlg) anaAlgs.push_back(std::move(anaAlg));
       else std::cerr << "Could not find Analyzer algorithm " << ana << "\n";
     }
-
-    //Now that plugins have requested their options from the command line, parse it AGAIN.  This 
-    //time, throw on unknown keys. 
-    const auto& plgnOptions = cmdLine.Parse(argc, argv);
-    for(const auto& reco: recoAlgs) reco->Configure(plgnOptions);
-    for(const auto& ana: anaAlgs) ana->Configure(plgnOptions); 
 
     for(const auto& file: inFiles)
     {

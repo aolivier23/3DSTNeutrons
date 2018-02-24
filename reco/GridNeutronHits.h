@@ -20,8 +20,6 @@ namespace reco
       GridNeutronHits(const plgn::Reconstructor::Config& config);
       virtual ~GridNeutronHits() = default;
 
-      virtual void Configure(const opt::Options& opts) override;
-
     protected:
       virtual bool DoReconstruct() override; //Look at what is already in the tree and do your own reconstruction.
 
@@ -33,7 +31,7 @@ namespace reco
                     //with less than this amount of KE are not interesting to me.  
       bool fNeighborDist; //How far away should I look for interfering neighbors when deciding to keep hits.  
 
-      std::unique_ptr<GridHits> fHitAlg; //Algorithm for grouping TG4HitSegments into MCHits 
+      GridHits fHitAlg; //Algorithm for grouping TG4HitSegments into MCHits 
 
       //Internal functions
       std::set<int> NeutDescend(); //Should be const, but I think TTreeReaderArray is not const-correct.

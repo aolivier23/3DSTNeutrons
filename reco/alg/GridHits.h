@@ -100,12 +100,15 @@ namespace reco
                 hit.Time += seg.Start.T(); //Add time for average time at end
                 ++hit.NContrib;
                 const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
-                hit.TrackIDs.push_back(seg.PrimaryId);
                     
                 if(dist <= length+1e-5) 
                 {
                   hit.Energy += seg.EnergyDeposit*dist/length; //TODO: remove sanity check on distance
                   if(pred(seg)) hit.OtherE += seg.EnergyDeposit*dist/length; //User hook to keep track of energy from "special" segments
+                  else 
+                  {
+                    hit.TrackIDs.push_back(seg.PrimaryId);
+                  }
                 }
                 else std::cerr << "Got distance inside hitBox that is greater than this segment's length!  dist is: " << dist << "\nlength is: " << length << "\n";
               }

@@ -2,6 +2,11 @@
 //Brief: Combines all MCHits that are adjacent to other MCHits into one big cluster.  Then, combines leftover MCHits into clusters that are 5 or fewer hit widths away.
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 
+//util includes
+#include "IO/Option/runtime/CmdLine.h"
+#include "IO/Option/runtime/Options.h"
+#include "IO/Option/runtime/ExactlyOnce.h"
+
 //EDepNeutrons includes
 #include "app/Factory.cpp"
 #include "reco/MergedClusters.h"
@@ -14,9 +19,20 @@
 #include "TGeoNode.h"
 #include "TGeoManager.h"
 
+namespace plgn
+{
+  //Register command line options
+  template <>
+  void RegCmdLine<reco::MergedClusters>(opt::CmdLine& opts)
+  {
+    opts.AddKey("--hit-alg", "Name of the branch from which to read pers::MCHits.  Usually also the name of the hit-making algorithm.", "GridNeutronHits");
+  }
+}
+
 namespace reco
 {
-  MergedClusters::MergedClusters(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fClusters(), fHits(*(config.Input), "GridNeutronHits")
+  MergedClusters::MergedClusters(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fClusters(), 
+                                                                             fHits(*(config.Input), (*(config.Options))["--hit-alg"].c_str())
   {
     config.Output->Branch("MergedClusters", &fClusters);
   }

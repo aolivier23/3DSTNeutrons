@@ -4,6 +4,9 @@
 
 //util includes
 #include "Base/exception.h"
+#include "IO/Option/runtime/CmdLine.h"
+#include "IO/Option/runtime/Options.h"
+#include "IO/Option/runtime/ExactlyOnce.h"
 
 //edepsim includes
 #include "TG4Trajectory.h"
@@ -227,14 +230,28 @@ namespace
   }
 }
 
+
+namespace plgn
+{
+  //Register command line options
+  template <>
+  void RegCmdLine<reco::NoGridNeutronHits>(opt::CmdLine& opts)
+  {
+    opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "2.0");
+    opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "100.");
+  }
+}
+
 namespace reco
 {
-  NoGridNeutronHits::NoGridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(100.), fEMin(2.)
+  NoGridNeutronHits::NoGridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits()
   {
     //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
     //      reconfigure from opt::Options after Parse() was called? 
-
     config.Output->Branch("NoGridNeutronHits", &fHits);
+
+    fEMin = config.Options->Get<double>("--E-min");
+    fWidth = config.Options->Get<double>("--cube-size");
   }
 
   //Produce MCHits from TG4HitSegments descended from FS neutrons above threshold

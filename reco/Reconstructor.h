@@ -28,14 +28,12 @@ namespace plgn
       {
         TTreeReader* Input;
         TTree* Output;
-        opt::CmdLine* CmdLine;
+        const opt::Options* Options;
       };
 
       Reconstructor(const Config& config);
       virtual ~Reconstructor() = default;
 
-      virtual void Configure(const opt::Options& opts) {} //Optional configuration from command line.  Default does nothing.  
-      virtual void DeclareBranches(TTree* output) {} //Optional chance to declare output branches.  Should probably always be used.
       bool Reconstruct(); //Public interface to private implementation
 
     protected:

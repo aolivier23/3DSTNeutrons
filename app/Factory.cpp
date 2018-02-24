@@ -7,6 +7,9 @@
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 //Inspired by the conversation at https://codereview.stackexchange.com/questions/119812/compile-time-plugin-system
 
+//util include
+#include "IO/Option/runtime/CmdLine.h"
+
 //c++ includes
 #include <memory> //For std::unique_ptr
 #include <map>
@@ -16,6 +19,20 @@
 
 namespace plgn
 {
+
+  //Helper function to register command line options for a user-defined plugin class.  
+  //To register command line options for a class, specialize RegCmdLine<MyClass>(opt::CmdLine& opts):
+  //
+  //template <>
+  //plgn::RegCmdLine<MyClass>(opt::CmdLine& opts)
+  //{
+  //  opts.AddKey("name", "explanation", "default value");
+  //}
+  //
+  //Providing default implementation here that does nothing.  
+  template <class T>
+  void RegCmdLine(opt::CmdLine& opts) {}
+
   template <class BASE>
   class RegistrarBase
   {
@@ -23,6 +40,7 @@ namespace plgn
       virtual ~RegistrarBase() = default;
 
       virtual std::unique_ptr<BASE> NewPlugin(const typename BASE::Config& config) = 0;
+      virtual void RegCmdLine(opt::CmdLine& opts) = 0;
   };
 
   template <class BASE>
@@ -40,6 +58,11 @@ namespace plgn
       }
 
       virtual ~Factory() = default;
+
+      void RegCmdLine(opt::CmdLine& opts)
+      {
+        for(const auto& reg: fNameToReg) reg.second->RegCmdLine(opts);
+      }
  
       void Add(const std::string& name, RegistrarBase<BASE>* reg)
       {
@@ -72,6 +95,11 @@ namespace plgn
       {
         auto& reg = Factory<BASE>::instance();
         reg.Add(name, this);
+      }
+
+      virtual void RegCmdLine(opt::CmdLine& opts) override
+      {
+        plgn::RegCmdLine<DERIVED>(opts);
       }
 
       virtual ~Registrar() = default;
