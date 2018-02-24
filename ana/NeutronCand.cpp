@@ -62,8 +62,6 @@ namespace ana
       {
         if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
         {
-          //fFSNeutronEnergy->Fill(trajs[part.TrackId].InitialMomentum.E()-trajs[part.TrackId].InitialMomentum.Mag());
-
           std::set<int> descend;
           truth::Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
           descend.insert(part.TrackId);
@@ -72,59 +70,40 @@ namespace ana
       }
     }
 
-    const double vtxBoxWidth = 10.;
-    fNCand->Fill(std::count_if(fClusters.begin(), fClusters.end(), [&vtxBoxWidth, &TrackIDsToFS, &trajs](const auto& cand)
-                                                                   {
-                                                                     //TODO: GridNeutronHits puts non-neutron stuff in TrackIDs right now!  
-                                                                     //      The next line would then put "junk" in TrackIDsToFS.  I should 
-                                                                     //      either update GridNeutronHits or use std::map::find() here.  
-                                                                     const auto& neutron = trajs[TrackIDsToFS[cand.TrackIDs.front()]];
-                                                                     const auto vtxDiff = (cand.Position - neutron.Points[0].Position).Vect();
-                                                                     return (vtxDiff.X() > vtxBoxWidth && 
-                                                                             vtxDiff.Y() > vtxBoxWidth && 
-                                                                             vtxDiff.Z() > vtxBoxWidth);
-                                                                   }));
+    //TODO: Surely there is some way to just get the size.  Maybe by subtracting iterators?
+    fNCand->Fill(std::count_if(fClusters.begin(), fClusters.end(), [](const auto& cand) { return true; })); 
 
     std::map<int, std::vector<pers::MCCluster>> FSToCands; //Map of FS neutron to the candidates it is responsible for
     for(const auto& cand: fClusters)
     {
-      //Don't count candidates near the vertex since my octree causes artifacts there.
-      const auto vtxDiff = (cand.Position - trajs[TrackIDsToFS[cand.TrackIDs.front()]].Points[0].Position).Vect(); //TODO: This might get ugly 
-                                                                                                            //      with multiple vertices.
-      if(vtxDiff.X() > vtxBoxWidth && vtxDiff.Y() > vtxBoxWidth && vtxDiff.Z() > vtxBoxWidth) //10cm^3 vertex box
-      {
-        fCandidateEnergy->Fill(cand.Energy);
+      fCandidateEnergy->Fill(cand.Energy);
        
-        std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
-        for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); 
+      std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
+      for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); 
 
-        double sumCauseE = 0.; //Sum of energy from all causes of this candidate      
-        for(const int neutronID: FSIds) //For each FS neutron TrackID
-        {
-          FSToCands[neutronID].push_back(cand);
-          const auto& neutron = trajs[neutronID];
+      double sumCauseE = 0.; //Sum of energy from all causes of this candidate      
+      for(const int neutronID: FSIds) //For each FS neutron TrackID
+      {
+        FSToCands[neutronID].push_back(cand);
+        const auto& neutron = trajs[neutronID];
 
-          sumCauseE += neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag();
-          //fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
-          /*if(cand.Energy > neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag())
-            std::cout << "Candidate energy, " << cand.Energy << ", is > cause energy: " 
-                      << neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag() << ".  This candidate has " 
-                      << FSIds.size() << " unique causes.\n";*/ //These are multi-cause events!
+        sumCauseE += neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag();
+        //fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
+        /*if(cand.Energy > neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag())
+          std::cout << "Candidate energy, " << cand.Energy << ", is > cause energy: " 
+                    << neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag() << ".  This candidate has " 
+                    << FSIds.size() << " unique causes.\n";*/ //These are multi-cause events!
 
-          //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
-          const auto candVec = (cand.Position-neutron.Points[0].Position).Vect();
+        //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
+        const auto candVec = (cand.Position-neutron.Points[0].Position).Vect();
 
-          const double angle = std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit()))*180./3.1415926535897932384626433832;
-          fCandAngleWRTCause->Fill(angle);
-          fAngleVsDistFromVtx->Fill(candVec.Mag(), angle);
+        const double angle = std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit()))*180./3.1415926535897932384626433832;
+        fCandAngleWRTCause->Fill(angle);
+        fAngleVsDistFromVtx->Fill(candVec.Mag(), angle);
 
-        }
-        fCauseEnergyVsCandEnergy->Fill(cand.Energy, sumCauseE); //Candidate energy might sometimes be slightly larger than sum of FS 
-                                                                //neutrons because of Fermi motion.  
       }
+      fCauseEnergyVsCandEnergy->Fill(cand.Energy, sumCauseE); //Candidate energy might sometimes be slightly larger than sum of FS 
     }
-
-    //fCandPerNeutron->Fill(fClusters.GetSize()/FSToCands.size());
 
     for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag());
 
