@@ -74,7 +74,7 @@ namespace reco
                                                          [this, &outerHit](const auto& innerHit)                                          
                                                          {
                                                            auto diff = outerHit.Position-innerHit.Position;
-                                                           const double width = (outerHit.Width+innerHit.Width)/2.*this->fMergeDist;
+                                                           const double width = (outerHit.Width+innerHit.Width)/2.*(this->fMergeDist+1.);
                                                            return (std::fabs(diff.X()) < width 
                                                                    || std::fabs(diff.Y()) < width 
                                                                    || std::fabs(diff.Z()) < width);
