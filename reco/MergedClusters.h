@@ -30,6 +30,9 @@ namespace reco
 
       //Location from which MCHits will be read
       TTreeReaderArray<pers::MCHit> fHits;
+
+      size_t fMergeDist; //Number of empty cubes over which clusters can "jump".  A value of 0 means cubes must be adjacent to form 
+                         //clusters.  
   };
 }
 

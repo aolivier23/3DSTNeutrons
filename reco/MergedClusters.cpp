@@ -26,6 +26,7 @@ namespace plgn
   void RegCmdLine<reco::MergedClusters>(opt::CmdLine& opts)
   {
     opts.AddKey("--hit-alg", "Name of the branch from which to read pers::MCHits.  Usually also the name of the hit-making algorithm.", "GridNeutronHits");
+    opts.AddKey("--merge-dist", "Number of empty cubes over which clusters can \"jump\".  A value of 0 results in clusters of directly adjacent hits only.", "0");
   }
 }
 
@@ -35,6 +36,7 @@ namespace reco
                                                                              fHits(*(config.Input), (*(config.Options))["--hit-alg"].c_str())
   {
     config.Output->Branch("MergedClusters", &fClusters);
+    fMergeDist = config.Options->Get<size_t>("--merge-dist");
   }
 
   bool MergedClusters::DoReconstruct()
@@ -66,16 +68,16 @@ namespace reco
       //Look for an MCCluster that overlaps with this MCHit.  This nested find_if is basically a way of looping over 
       //all of the already-matched MCHits.  
       auto neighbor = std::find_if(clusterToHit.begin(), clusterToHit.end(), 
-                                   [&outerHit](const auto& pair)
+                                   [this, &outerHit](const auto& pair)
                                    {
                                      return std::find_if(pair.second.begin(), pair.second.end(), 
-                                                         [&outerHit](const auto& innerHit)                                          
+                                                         [this, &outerHit](const auto& innerHit)                                          
                                                          {
                                                            auto diff = outerHit.Position-innerHit.Position;
-                                                           const double width = outerHit.Width+innerHit.Width;
-                                                           return (std::fabs(diff.X()) < width/2. 
-                                                                   || std::fabs(diff.Y()) < width/2. 
-                                                                   || std::fabs(diff.Z()) < width/2.);
+                                                           const double width = (outerHit.Width+innerHit.Width)/2.*this->fMergeDist;
+                                                           return (std::fabs(diff.X()) < width 
+                                                                   || std::fabs(diff.Y()) < width 
+                                                                   || std::fabs(diff.Z()) < width);
                                                          }) != pair.second.end();
                                     });
 
