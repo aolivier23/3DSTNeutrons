@@ -37,7 +37,7 @@ namespace ana
     fFSNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "KE of FS Neutrons that Produced Candidates;Energy [MeV];Events",
                                                200, 0, 3000);
     fCauseEnergyVsCandEnergy = config.File->make<TH2D>("CauseEnergyVsCandEnergy", "KE of FS Neutrons versus Energies of their Candidates;Candidate Energy [MeV];"
-                                                                                  "FS Neutron KE [MeV];FS Neutrons", 150, 0, 1000, 200, 0, 3000);
+                                                                                  "FS Neutron KE [MeV];FS Neutrons", 400, 0, 200, 200, 0, 3000);
     fCandAngleWRTCause = config.File->make<TH1D>("CandAngleWRTCause", "Angle of Candidate w.r.t. InitialMomentum of FS Neutron;"
                                                                       "#Delta#theta_{Cand} [degrees];Candidates", 180, 0., 180.);
     fDistFromVtx = config.File->make<TH1D>("DistFromVertex", "Distance of Closest Candidate to Vertex per FS Neutron;Distance [mm];FS Neutrons", 350, 0, 5000);

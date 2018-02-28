@@ -33,6 +33,8 @@ namespace reco
 
       size_t fMergeDist; //Number of empty cubes over which clusters can "jump".  A value of 0 means cubes must be adjacent to form 
                          //clusters.  
+                         
+      std::string fHitAlgName; //Name of the hit algorithm to be clustered
   };
 }
 

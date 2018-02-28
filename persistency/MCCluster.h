@@ -33,6 +33,14 @@ namespace pers
       double YWidth;
       double ZWidth;
 
+      //TODO: For a "real" framework, some kind of "pointer" and "association" class would be more appropriate (like ART).  I 
+      //      want to stay as close to the I/O philosophy of edep-sim as possible, so sticking with storing indices of hits of 
+      //      interest combined with branch name of hits.  
+      //Refer to branch and hits that are part of this cluster
+      std::string HitAlg; //The name of the algorithm that was used to build the hits this clusters groups
+
+      std::vector<size_t> Hits; //Indices of the hits this cluster refers to 
+
       ClassDef(MCCluster, 1);
   };
 }
