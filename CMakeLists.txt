@@ -46,6 +46,7 @@ add_subdirectory(alg)
 add_subdirectory(reco)
 add_subdirectory(ana)
 add_subdirectory(app)
+add_subdirectory(grid)
 
 #Make the results of this build into a package.  Designed to be distributed as a .tar.gz
 #Learned to do this from http://agateau.com/2009/cmake-and-make-dist/
@@ -53,6 +54,7 @@ set( CPACK_PACKAGE_VERSION_MAJOR "2" )
 set( CPACK_PACKAGE_VERSION_MINOR "0" )
 set( CPACK_PACKAGE_VERSION_PATCH "0" )
 set( CPACK_SOURCE_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}" )
+set( CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set( CPACK_GENERATOR "TGZ" )
 #set( CPACK_SOURCE_IGNORE_FILES 
 
@@ -68,8 +70,8 @@ add_custom_target( dist COMMAND ${CMAKE_MAKE_PROGRAM} package_source )
 #
 #Defaults to just doing all of this in your installation directory
 #set( PNFS_DIR "${CPACK_PACKAGING_INSTALL_PREFIX}" )
-set( FILE_TO_DELETE "${PNFS_DIR}/${CPACK_PACKAGE_FILE_NAME}-${CPACK_SYSTEM_NAME}.tar.gz" )
+set( FILE_TO_DELETE "${PNFS_DIR}/${CPACK_PACKAGE_FILE_NAME}.tar.gz" )
 add_custom_target( pnfs COMMAND rm -f ${FILE_TO_DELETE} 
-                        COMMAND cp ${CPACK_PACKAGE_FILE_NAME}-${CPACK_SYSTEM_NAME}.tar.gz ${FILE_TO_DELETE} 
+                        COMMAND cp ${CPACK_PACKAGE_FILE_NAME}.tar.gz ${FILE_TO_DELETE} 
                         COMMENT "Explicitly removing ${FILE_TO_DELETE} for /pnfs compatibility..." )
 add_dependencies( pnfs dist )
