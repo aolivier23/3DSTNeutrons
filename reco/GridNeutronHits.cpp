@@ -38,7 +38,7 @@ namespace plgn
   {
     opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
     opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
-    opts.AddKey("--neighbor-cut", "Disable cut that requires no nearby energy deposits.", "2");
+    opts.AddKey("--neighbor-cut", "Cut that requires no nearby energy deposits.", "2");
   }
 }
 

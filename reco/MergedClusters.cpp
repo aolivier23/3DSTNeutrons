@@ -50,10 +50,6 @@ namespace reco
     //Make my own copy of the vector of hits as a std::list so I can remove the ones I use
     std::list<std::pair<pers::MCCluster, std::vector<pers::MCHit>>> clusterToHits;
 
-    const std::string fiducial = "volA3DST_PV";
-    auto mat = geo::findMat(fiducial, *(fGeo->GetTopNode()));
-    auto shape = fGeo->FindVolumeFast(fiducial.c_str())->GetShape();
-
     //Tejin-like candidates (from Minerva).  
     for(auto outerHitPos = fHits.begin(); outerHitPos != fHits.end(); ++outerHitPos)
     {
@@ -63,6 +59,7 @@ namespace reco
       std::pair<pers::MCCluster, std::vector<pers::MCHit>> seed;
       seed.first.Energy = outerHit.Energy;
       seed.first.TrackIDs = outerHit.TrackIDs;
+      seed.second.push_back(outerHit);
 
       //Look for clusters that are close to hit, meging them into seed as I go
       clusterToHits.remove_if([&outerHit, this, &seed](const auto& pair)
@@ -106,22 +103,22 @@ namespace reco
 
       //Now that I know clust's starting position, find its size.
       const auto xMax = std::max_element(hits.begin(), hits.end(), [&clust](const auto& first, const auto& second) 
-                                                                   { return std::fabs(first.Position.X() - clust.Position.X())                                                                                                                       < std::fabs(second.Position.X() - clust.Position.X()); }); 
-      clust.XWidth = (xMax != hits.end())?2.*std::fabs(xMax->Position.X() - clust.Position.X()):-1.;
+                                                                   { return std::fabs(first.Position.X() - clust.Position.X())
+                                                                          < std::fabs(second.Position.X() - clust.Position.X()); });
+      clust.XWidth = (xMax != hits.end())?2.*std::fabs(xMax->Position.X() - clust.Position.X())+xMax->Width:-1.;
 
       const auto yMax = std::max_element(hits.begin(), hits.end(), [&clust](const auto& first, const auto& second)
                                                                    {
-                                                                     return   (first.Position-clust.Position).Y()
-                                                                            < (second.Position-clust.Position).Y();
+                                                                     return std::fabs(first.Position.Y() - clust.Position.Y())                                                                                           < std::fabs(second.Position.Y() - clust.Position.Y());
                                                                    });
-      clust.YWidth = (yMax != hits.end())?2.*std::fabs(yMax->Position.Y() - clust.Position.Y()):-1.;
+      clust.YWidth = (yMax != hits.end())?2.*std::fabs(yMax->Position.Y() - clust.Position.Y())+yMax->Width:-1.;
 
       const auto zMax = std::max_element(hits.begin(), hits.end(), [&clust](const auto& first, const auto& second)
                                                                    {
-                                                                     return   (first.Position-clust.Position).Z()
-                                                                            < (second.Position-clust.Position).Z();
+                                                                     return std::fabs(first.Position.Z() - clust.Position.Z())    
+                                                                          < std::fabs(second.Position.Z() - clust.Position.Z());
                                                                    });
-      clust.ZWidth = (zMax != hits.end())?2.*std::fabs(zMax->Position.Z() - clust.Position.Z()):-1.;
+      clust.ZWidth = (zMax != hits.end())?2.*std::fabs(zMax->Position.Z() - clust.Position.Z())+zMax->Width:-1.;
       fClusters.push_back(clust);
     }
 

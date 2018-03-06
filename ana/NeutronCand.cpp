@@ -20,7 +20,7 @@ namespace plgn
   void RegCmdLine<ana::NeutronCand>(opt::CmdLine& opts)
   {
     opts.AddKey("--cluster-alg", "Name of the branch of pers::MClusters to analyze.  Usually the name of the cluster-making algorithm.", "MergedClusters");
-    opts.AddKey("--E-min", "Minimum energy for a FS neutron to be plotted.  Should match hit-making and cluster-making algorithms.", "2.0");
+    opts.AddKey("--E-min", "Minimum energy for a FS neutron to be plotted.  Should match hit-making and cluster-making algorithms.", "1.5");
   }
 }
 
@@ -30,14 +30,14 @@ namespace ana
                                                                   fMinEnergy(config.Options->Get<double>("--E-min"))
   {
     fCandidateEnergy = config.File->make<TH1D>("CandidateEnergy", "Energy Specturm of Neutron Candidates;Energy [MeV];Events",
-                                               150, 0, 1000);
+                                               150, 0, 150);
     fCandPerNeutron = config.File->make<TH1D>("CandPerNeutron", "Number of Candidates per FS Neutron;Neutron Candidates;Neutrons",
-                                              50, 0, 20);
+                                              20, 0, 20);
     fNCand = config.File->make<TH1I>("NCand", "Number of Candidates per Event;Neutron Candidates;Events", 20, 0, 20);
     fFSNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "KE of FS Neutrons that Produced Candidates;Energy [MeV];Events",
                                                200, 0, 3000);
     fCauseEnergyVsCandEnergy = config.File->make<TH2D>("CauseEnergyVsCandEnergy", "KE of FS Neutrons versus Energies of their Candidates;Candidate Energy [MeV];"
-                                                                                  "FS Neutron KE [MeV];FS Neutrons", 400, 0, 200, 200, 0, 3000);
+                                                                                  "FS Neutron KE [MeV];FS Neutrons", 100, 0, 100, 200, 0, 200);
     fCandAngleWRTCause = config.File->make<TH1D>("CandAngleWRTCause", "Angle of Candidate w.r.t. InitialMomentum of FS Neutron;"
                                                                       "#Delta#theta_{Cand} [degrees];Candidates", 180, 0., 180.);
     fDistFromVtx = config.File->make<TH1D>("DistFromVertex", "Distance of Closest Candidate to Vertex per FS Neutron;Distance [mm];FS Neutrons", 350, 0, 5000);
@@ -71,7 +71,7 @@ namespace ana
     }
 
     //TODO: Surely there is some way to just get the size.  Maybe by subtracting iterators?
-    fNCand->Fill(std::count_if(fClusters.begin(), fClusters.end(), [](const auto& cand) { return true; })); 
+    fNCand->Fill(fClusters.GetSize()); 
 
     std::map<int, std::vector<pers::MCCluster>> FSToCands; //Map of FS neutron to the candidates it is responsible for
     for(const auto& cand: fClusters)
@@ -118,6 +118,7 @@ namespace ana
                                                                                  });
       fDistFromVtx->Fill((closest->Position-FSPos).Vect().Mag());
       fCandPerNeutron->Fill(FS.second.size());
+      if(FS.second.size() > 5) std::cout << "Many-candidate event (" << FS.second.size() << " candidates): " << fEvent->EventId << "\n";
       fCandPerNeutronVsNeutronKE->Fill(trajs[FS.first].InitialMomentum.E()-trajs[FS.first].InitialMomentum.Mag(), FS.second.size());
     }
   }

@@ -18,7 +18,7 @@ namespace plgn
   template <>
   void RegCmdLine<ana::FSNeutrons>(opt::CmdLine& opts)
   {
-    opts.AddKey("--E-min", "Minimum energy for a neutron candidate to be plotted.  Should match hit-making and cluster-making algorithms", "2.0");
+    opts.AddKey("--E-min", "Minimum energy for a neutron candidate to be plotted.  Should match hit-making and cluster-making algorithms", "1.5");
   }
 }
 
@@ -27,17 +27,25 @@ namespace ana
   FSNeutrons::FSNeutrons(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fEMin(config.Options->Get<double>("--E-min"))
   {
     fNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "KE of All FS Neutrons;Energy [MeV];FS Neutrons", 200, 0, 3000);
+    fNFSNeutrons = config.File->make<TH1D>("NFSNeutrons", ("Number of FS Neutrons Above "+std::to_string(fEMin)+" MeV;FS Neutrons;Events").c_str(), 
+                                           10, 0, 10);
   }
 
   void FSNeutrons::DoAnalyze()
   {  
+    size_t nFSNeutrons = 0;
     for(const auto& vertex: fEvent->Primaries)
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fEMin) fNeutronEnergy->Fill(part.Momentum.E() - part.Momentum.Mag());
+        if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fEMin) 
+        {
+          fNeutronEnergy->Fill(part.Momentum.E() - part.Momentum.Mag());
+          ++nFSNeutrons;
+        }
       }
     }
+    fNFSNeutrons->Fill(nFSNeutrons);
   }
 
   REGISTER_PLUGIN(FSNeutrons, plgn::Analyzer);
