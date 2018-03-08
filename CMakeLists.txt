@@ -56,22 +56,18 @@ set( CPACK_PACKAGE_VERSION_PATCH "0" )
 set( CPACK_SOURCE_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}" )
 set( CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set( CPACK_GENERATOR "TGZ" )
-#set( CPACK_SOURCE_IGNORE_FILES 
 
 include( CPack )
 #Whatever magic this custom target does allows my target pnfs to depend on CPack's files
-add_custom_target( dist COMMAND ${CMAKE_MAKE_PROGRAM} package_source )
+add_custom_target( myPack COMMAND ${CMAKE_MAKE_PROGRAM} package )
 
 #The dCache file system at Fermilab (/pnfs) does not allow files to be overwritten, but tar files that go to the grid need to be 
 #put there.  So, explicitly delete the old tar gile it it exists before installing the new one.  
-#To specify how to install things in pnfs for grid jobs, set PNFS_DIR from the command line with 
 #
-#cmake ... -DPNFS_DIR=/pnfs/dune/resilient/users/...
+#make pnfs
 #
-#Defaults to just doing all of this in your installation directory
-#set( PNFS_DIR "${CPACK_PACKAGING_INSTALL_PREFIX}" )
-set( FILE_TO_DELETE "${PNFS_DIR}/${CPACK_PACKAGE_FILE_NAME}.tar.gz" )
+set( FILE_TO_DELETE "${PNFS_DIR}/${CMAKE_PROJECT_NAME}.tar.gz" )
 add_custom_target( pnfs COMMAND rm -f ${FILE_TO_DELETE} 
-                        COMMAND cp ${CPACK_PACKAGE_FILE_NAME}.tar.gz ${FILE_TO_DELETE} 
+                        COMMAND cp ${CMAKE_PROJECT_NAME}.tar.gz ${FILE_TO_DELETE} 
                         COMMENT "Explicitly removing ${FILE_TO_DELETE} for /pnfs compatibility..." )
-add_dependencies( pnfs dist )
+add_dependencies( pnfs myPack )

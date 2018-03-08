@@ -49,6 +49,9 @@ namespace ana
                                                                         "Candidate from vertex;Distance from Vertex [mm];"
                                                                         "Candidate from vertex;#Delta#theta_{Cand} [degrees];Candidates", 
                                                                         350, 0, 5000, 180, 0., 180.);
+
+    fNeutronsPerCand = config.File->make<TH1D>("NeutronsPerCand", "Number of Neutrons per Candidate;Neutrons;Candidates", 
+                                               10, 0, 10);
   }
 
   void NeutronCand::DoAnalyze()
@@ -80,6 +83,7 @@ namespace ana
        
       std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
       for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); 
+      fNeutronsPerCand->Fill(FSIds.size());
 
       double sumCauseE = 0.; //Sum of energy from all causes of this candidate      
       for(const int neutronID: FSIds) //For each FS neutron TrackID

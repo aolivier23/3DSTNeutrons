@@ -42,6 +42,7 @@ namespace ana
       TH2D* fCandPerNeutronVsNeutronKE; //Number of candidates versus neutron KE.  Filled once per FS neutron with candidates.
       TH2D* fAngleVsDistFromVtx; //Angle of candidate w.r.t. FS neutron versus distance from vertex to show why angle distribution has 
                                  //peak at 0
+      TH1D* fNeutronsPerCand; //Number of neutrons assigned to each candidate
   };
 }
 

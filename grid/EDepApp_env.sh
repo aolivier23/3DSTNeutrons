@@ -1,0 +1,2 @@
+#Submits jobs to jobsub with some "standard" environment variables.
+jobsub_submit --resource-provides=usage_model=OPPORTUNISTIC file:///dune/app/users/aolivier/nd_neutrons/EdepNeutrons/bin/grid/EDepApp.sh dune/persistent/users/aolivier/edepsim/neutrons '(.*)-edep_'${PROCESS}'\.root' /pnfs/dune/persistent/users/aolivier/neutrons/PosRes/default/hits hits_with_meta /pnfs/dune/persistent/users/aolivier/neutrons/March6/hits /pnfs/dune/persistent/users/aolivier/tardir --reco GridNeutronHits --ana FSNeutron
