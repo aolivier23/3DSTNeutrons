@@ -63,7 +63,7 @@ namespace reco
         size_t NContrib;
       };
 
-      GridHits(const double width);
+      GridHits(const double width, const bool useSecond);
       virtual ~GridHits() = default;
 
       //Public interface
@@ -101,10 +101,11 @@ namespace reco
                 ++hit.NContrib;
                 const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
                     
-                if(dist <= length+1e-5) 
+                if(dist <= length+1e-5) //TODO: remove sanity check on distance
                 {
-                  hit.Energy += seg.EnergyDeposit*dist/length; //TODO: remove sanity check on distance
-                  if(pred(seg)) hit.OtherE += seg.EnergyDeposit*dist/length; //User hook to keep track of energy from "special" segments
+                  const double edep = (fUseSecondary?seg.EnergyDeposit:seg.SecondaryDeposit)*dist/length;
+                  hit.Energy += edep; 
+                  if(pred(seg)) hit.OtherE += edep; //User hook to keep track of energy from "special" segments
                   else 
                   {
                     hit.TrackIDs.push_back(seg.PrimaryId);
@@ -125,6 +126,8 @@ namespace reco
       //Data members
       double fWidth; //The width of the cubes used to make HitData objects and MCHits
       TGeoBBox fHitBox; //The geometry of one MCHit
+      bool fUseSecondary; //Use TG4HitSegment::SecondaryDeposit instead of EnergyDeposit?  There exists a 
+                          //prototype for a mechanism to put the Birks' Law-corrected visible energy in the secondary deposit. 
 
       //Internal methods
       double LengthInsideBox(const TG4HitSegment& seg, const TVector3& boxCenter, TGeoMatrix* mat) const;

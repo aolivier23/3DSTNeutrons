@@ -10,7 +10,7 @@
 
 namespace reco
 {
-  GridHits::GridHits(const double width): fWidth(width), fHitBox(width/2., width/2., width/2.)
+  GridHits::GridHits(const double width, const bool useSecond): fWidth(width), fHitBox(width/2., width/2., width/2.), fUseSecondary(useSecond)
   {
   }
   

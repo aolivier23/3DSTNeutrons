@@ -4,6 +4,10 @@
 
 //util includes
 #include "Base/exception.h"
+#include "IO/Option/runtime/CmdLine.h"
+#include "IO/Option/runtime/Options.h"
+#include "IO/Option/runtime/ExactlyOnce.h"
+#include "IO/Option/runtime/Exists.h"
 
 //edepsim includes
 #include "TG4Trajectory.h"
@@ -25,13 +29,27 @@
 //c++ includes
 #include <set>
 
+
+namespace plgn
+{
+  //Set up command line parsing
+  template <>
+  void RegCmdLine<reco::GridAllHits>(opt::CmdLine& opts)
+  {
+    opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
+    opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
+    opts.AddKey("--neighbor-cut", "Cut that requires no nearby energy deposits.", "2");
+    opts.AddKey<opt::Exists>("--after-birks", "Use secondary energy deposit which can be calculated after applying Birks' Law.", "false");
+  }
+}
+
 namespace reco
 {
-  GridAllHits::GridAllHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fEMin(1.5), fHitAlg(10.)
+  GridAllHits::GridAllHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), 
+                                                                       fEMin(config.Options->Get<double>("--E-min")), 
+                                                                       fHitAlg(config.Options->Get<double>("--cube-size"), 
+                                                                               config.Options->Get<bool>("--after-birks"))
   {
-    //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
-    //      reconfigure from opt::Options after Parse() was called? 
-
     config.Output->Branch("GridAllHits", &fHits);
   }
 

@@ -7,6 +7,7 @@
 #include "IO/Option/runtime/CmdLine.h"
 #include "IO/Option/runtime/Options.h"
 #include "IO/Option/runtime/ExactlyOnce.h"
+#include "IO/Option/runtime/Exists.h"
 
 //edepsim includes
 #include "TG4Trajectory.h"
@@ -39,13 +40,15 @@ namespace plgn
     opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
     opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
     opts.AddKey("--neighbor-cut", "Cut that requires no nearby energy deposits.", "2");
+    opts.AddKey<opt::Exists>("--after-birks", "Use secondary energy deposit which can be calculated after applying Birks' Law.", "false");
   }
 }
 
 namespace reco
 {
   GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), 
-                                                                               fHitAlg(config.Options->Get<double>("--cube-size"))
+                                                                               fHitAlg(config.Options->Get<double>("--cube-size"), 
+                                                                                       config.Options->Get<bool>("--after-birks"))
   {
     config.Output->Branch("GridNeutronHits", &fHits);
     

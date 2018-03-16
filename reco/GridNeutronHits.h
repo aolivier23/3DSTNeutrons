@@ -29,7 +29,7 @@ namespace reco
       //Parameters that I will refer to
       double fEMin; //The energy threshold in MeV for creating an MCHit.  Neutrons 
                     //with less than this amount of KE are not interesting to me.  
-      bool fNeighborDist; //How far away should I look for interfering neighbors when deciding to keep hits.  
+      size_t fNeighborDist; //How far away should I look for interfering neighbors when deciding to keep hits.  
 
       GridHits fHitAlg; //Algorithm for grouping TG4HitSegments into MCHits 
 
