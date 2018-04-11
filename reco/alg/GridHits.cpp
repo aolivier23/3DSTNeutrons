@@ -8,9 +8,14 @@
 //Include header
 #include "reco/alg/GridHits.h"
 
+//c++ includes
+#include <chrono>
+
 namespace reco
 {
-  GridHits::GridHits(const double width, const bool useSecond): fWidth(width), fHitBox(width/2., width/2., width/2.), fUseSecondary(useSecond)
+  GridHits::GridHits(const double width, const bool useSecond, const double timeRes): fWidth(width), fHitBox(width/2., width/2., width/2.), fUseSecondary(useSecond), 
+                                                                fGen(std::chrono::system_clock::now().time_since_epoch().count()),
+                                                                fGaus(0., timeRes)
   {
   }
   
@@ -52,7 +57,7 @@ namespace reco
     return dist;
   }
 
-  pers::MCHit GridHits::MakeHit(const std::pair<Triple, HitData>& hitData, TGeoMatrix* mat) const
+  pers::MCHit GridHits::MakeHit(const std::pair<Triple, HitData>& hitData, TGeoMatrix* mat)
   {
     const auto& key = hitData.first;
     const auto& hit = hitData.second;
@@ -62,8 +67,9 @@ namespace reco
     const auto global = geo::InGlobal(pos, mat);
       
     pers::MCHit out;
-    out.Position = TLorentzVector(global.X(), global.Y(), global.Z(), hit.Time/hit.NContrib); //Use average of times of hit segments
-    out.Energy = hit.Energy;
+    out.Position = TLorentzVector(global.X(), global.Y(), global.Z(), hit.Time/hit.NContrib+fGaus(fGen)); //Use average of times of hits smeared by a Gaussian with 
+                                                                                                          //standard deviation of time resolution.
+    out.Energy = hit.Energy; //TODO: Smear energy?  
     out.Width = fWidth;
     out.TrackIDs = hit.TrackIDs;
     return out;

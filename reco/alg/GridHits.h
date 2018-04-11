@@ -12,6 +12,7 @@
 
 //c++ includes
 #include <iostream>
+#include <random>
 
 #ifndef RECO_GRIDHITS_H
 #define RECO_GRIDHITS_H
@@ -63,7 +64,7 @@ namespace reco
         size_t NContrib;
       };
 
-      GridHits(const double width, const bool useSecond);
+      GridHits(const double width, const bool useSecond, const double timeRes);
       virtual ~GridHits() = default;
 
       //Public interface
@@ -97,9 +98,12 @@ namespace reco
     
               if(dist > 0)
               {
-                hit.Time += seg.Start.T(); //Add time for average time at end
                 ++hit.NContrib;
                 const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
+                hit.Time += seg.Start.T() + (seg.Stop.T() - seg.Start.T())*dist/length; 
+                                                                        //TODO: The particle is slowing down if it is depositing energy.  So, this time is also wrong, but 
+                                                                        //      slightly more realistic than using starting time.  I could get the velocity at a point and 
+                                                                        //      use that to get time here.    
                     
                 if(dist <= length+1e-5) //TODO: remove sanity check on distance
                 {
@@ -120,7 +124,7 @@ namespace reco
 
 
       //Turn the elements of the map from MakeHitData back into an MCHit.
-      pers::MCHit MakeHit(const std::pair<Triple, HitData>& hitData, TGeoMatrix* mat) const;
+      pers::MCHit MakeHit(const std::pair<Triple, HitData>& hitData, TGeoMatrix* mat); //Not const because using PRNG
 
     protected:
       //Data members
@@ -131,6 +135,10 @@ namespace reco
 
       //Internal methods
       double LengthInsideBox(const TG4HitSegment& seg, const TVector3& boxCenter, TGeoMatrix* mat) const;
+
+      //PRNG for smearing times
+      std::mt19937 fGen; //Mersenne Twister engine with period of 19937
+      std::normal_distribution<double> fGaus; //Normal distribution object (Gaussian distribution)
   };
 }
 

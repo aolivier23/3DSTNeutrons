@@ -45,9 +45,6 @@ namespace ana
     fNeutronEResidual = config.File->make<TH1D>("NeutronEResidual", "Relative Error in Neutron Energy from TOF;#frac{E_{TOF}-E_{True}}{E_{True}}", 300, -1., 1.);
 
     fBeta = config.File->make<TH1D>("Beta", "Velocity Ratio for Closest Hit to Each FS Neutron;#frac{v}{c}", 50, 0, 1.);
-
-    fTimeSmear = config.File->make<TH1D>("TimeSmear", "Amount of Hit Time Smearing;#DeltaT", 200, -(config.Options->Get<double>("--time-res")*5), 
-                                         config.Options->Get<double>("--time-res")*5);
   }
 
   void NeutronTOF::DoAnalyze()
@@ -95,16 +92,15 @@ namespace ana
           {
             const auto diff = ((*closest).Position - vert.Position); 
             const auto smear = fGaus(fGen);
-            const double deltaT = diff.T()*smear; //Smear time values since MCHits just contain average true time in a cell
-            fTimeSmear->Fill(deltaT/diff.T()); //Check that time smearing is actually a Gaussian since collaborators might be uncomfortable with my PRNG
+            const double deltaT = diff.T() - (vert.Position.T()+smear); //Smear vertex time values since I'm using the true vertex for now
             const double dist = diff.Vect().Mag(); //Distance is already smeared by virtue of the geometry I am using for hit-making
             fNeutronHitTime->Fill(deltaT);
             fNeutronTimeVersusDist->Fill(dist, deltaT);
 
             if(deltaT > 3.0 && dist > 10.) //in ns and mm respectively
             {
-              const float c = 29.9792; //Speed of light = 30 cm/ns
-              const auto beta = dist/10./deltaT/c; //10. converts dist from mm to cm  
+              const float c = 299.792; //Speed of light = 300 mm/ns
+              const auto beta = dist/deltaT/c; 
               const auto mass = 939.56563; //MeV/c^2
               const auto energy = mass/std::sqrt(1.-beta*beta); //E = gamma * mc^2 
               fBeta->Fill(beta);
@@ -119,7 +115,7 @@ namespace ana
                           << "\nTime difference is " << deltaT << "\n"
                           << "Interaction time is " << vert.Position.T() << "\n"
                           << "Closest hit time is " << (*closest).Position.T() << "\n"
-                          << "Smeared deltaT by " << smear << "\n"
+                          << "Smeared vertex time by " << smear << "\n"
                           << "closest->Position is (" << (*closest).Position.X() << ", " << (*closest).Position.Y() << ", " 
                           << (*closest).Position.Z() << ")\n"
                           << "Vertex is (" << vert.Position.X() << ", " << vert.Position.Y() << ", " << vert.Position.Z() << ")\n"

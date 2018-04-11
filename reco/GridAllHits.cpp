@@ -40,6 +40,7 @@ namespace plgn
     opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
     opts.AddKey("--neighbor-cut", "Cut that requires no nearby energy deposits.", "2");
     opts.AddKey<opt::Exists>("--after-birks", "Use secondary energy deposit which can be calculated after applying Birks' Law.", "false");
+    opts.AddKey("--time-res", "Time resolution of 3DST in ns.  Used to smear times of hits.", "0.7");
   }
 }
 
@@ -48,7 +49,8 @@ namespace reco
   GridAllHits::GridAllHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), 
                                                                        fEMin(config.Options->Get<double>("--E-min")), 
                                                                        fHitAlg(config.Options->Get<double>("--cube-size"), 
-                                                                               config.Options->Get<bool>("--after-birks"))
+                                                                               config.Options->Get<bool>("--after-birks"),  
+                                                                               config.Options->Get<double>("--time-res"))
   {
     config.Output->Branch("GridAllHits", &fHits);
   }

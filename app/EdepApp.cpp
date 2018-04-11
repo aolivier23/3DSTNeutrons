@@ -68,7 +68,6 @@ int main(int argc, char** argv)
 
     //Parameters from the command line
     const auto inFiles = util::RegexFilesPath<std::string>(options["--regex"], options["--path"]);
-    const std::string outFileName;
 
     if(inFiles.empty())
     {
@@ -94,51 +93,67 @@ int main(int argc, char** argv)
     TTreeReader inReader(inTree);
     TTreeReaderValue<TG4Event> event(inReader, "Event");  
 
-    //Create a copy of the structure of the input tree
-    auto outFile = TFile::Open(options["--reco-file"].c_str(), "CREATE");
-    if(!outFile)
-    { 
-      std::cerr << "Could not create a new file called " << options["--reco-file"] << " to write out reconstructed events.\n";
-      return 3;
-    }
-
-    auto outTree = inTree->CloneTree(0); 
-    outTree->SetDirectory(outFile);
-    
-    //Get reconstruction plugins
-    plgn::Reconstructor::Config config;
-    config.Input = &inReader;
-    config.Output = outTree;
-    config.Options = &options;
+    TFile* outFile = nullptr;
+    TTree* outTree = nullptr;
 
     const auto recos = options.Get<std::vector<std::string>>("--reco");
     std::vector<std::unique_ptr<plgn::Reconstructor>> recoAlgs;
-    for(const auto& reco: recos)
-    {
-      if(reco == "") continue; //TODO: Make sure this never makes it into an Accumulate option
-      auto recoAlg = recoFactory.Get(reco, config);
-      if(recoAlg) recoAlgs.push_back(std::move(recoAlg));
-      else std::cerr << "Could not find Reconstructor algorithm " << reco << "\n";
-    }
-                                                                        
-    //Get analysis plugins
-    //TODO: Directory for each plugin?
-    util::SelectStyle(options["--style"]);
-    util::TFileSentry anaFile("histos_"+options["--reco-file"]);
-    plgn::Analyzer::Config anaConfig;
-    anaConfig.File = &anaFile;
-    anaConfig.Reader = &inReader;
-    anaConfig.Options = &options;
+    if(recos.front() != "") //TODO: There is a dummy entry in all Accumulate options
+    {  
+      //Only create an output file if there are Reconstructors being run
+      //Create a copy of the structure of the input tree
+      outFile = TFile::Open(options["--reco-file"].c_str(), "CREATE");
+      if(!outFile)
+      {   
+        std::cerr << "Could not create a new file called " << options["--reco-file"] << " to write out reconstructed events.\n";
+        return 3;
+      }
 
-    const auto anas = options.Get<std::vector<std::string>>("--ana");
-    std::vector<std::unique_ptr<plgn::Analyzer>> anaAlgs;
-    for(const auto& ana: anas)
-    {
-      if(ana == "") continue; //TODO: Make sure this never makes it into an Accumulate option
-      auto anaAlg = anaFactory.Get(ana, anaConfig);
-      if(anaAlg) anaAlgs.push_back(std::move(anaAlg));
-      else std::cerr << "Could not find Analyzer algorithm " << ana << "\n";
+      outTree = inTree->CloneTree(0); 
+      outTree->SetDirectory(outFile);
+    
+      //Get reconstruction plugins
+      plgn::Reconstructor::Config config;
+      config.Input = &inReader;
+      config.Output = outTree;
+      config.Options = &options;
+
+      for(const auto& reco: recos)
+      {
+        auto recoAlg = recoFactory.Get(reco, config);
+        if(recoAlg) 
+        {
+          recoAlgs.push_back(std::move(recoAlg));
+        }
+        else std::cerr << "Could not find Reconstructor algorithm " << reco << "\n";
+      }
     }
+    else std::cout << "No Reconstructors specified, so not creating an output file.\n";
+     
+    //Get analysis plugins
+    const auto anas = options.Get<std::vector<std::string>>("--ana");
+    std::vector<std::unique_ptr<plgn::Analyzer>> anaAlgs;    
+
+    std::unique_ptr<util::TFileSentry> anaFile(nullptr); 
+    if(anas.front() != "") //TODO: There is a dummy entry in all Accumulate options
+    { 
+      anaFile.reset(new util::TFileSentry("histos_"+options["--reco-file"]));
+      //Only create histogram file if I am running analysis plugins                                                              
+      //TODO: Directory for each plugin?
+      util::SelectStyle(options["--style"]);
+      plgn::Analyzer::Config anaConfig;
+      anaConfig.File = anaFile.get();
+      anaConfig.Reader = &inReader;
+      anaConfig.Options = &options;
+  
+      for(const auto& ana: anas)
+      {
+        auto anaAlg = anaFactory.Get(ana, anaConfig);
+        if(anaAlg) anaAlgs.push_back(std::move(anaAlg));
+        else std::cerr << "Could not find Analyzer algorithm " << ana << "\n";
+      }
+    }
+    else std::cout << "No Analyzers specified, so not creating a histogram file.\n";
 
     for(const auto& file: inFiles)
     {
@@ -164,7 +179,8 @@ int main(int argc, char** argv)
         continue;
       }
 
-      inTree->CopyAddresses(outTree);
+      if(outTree) inTree->CopyAddresses(outTree);
+      else std::cout << "There is no output tree, so not copying addresses.\n";
       inReader.SetTree(inTree);
 
       std::cout << "Processing file " << file << "\n";
@@ -182,33 +198,40 @@ int main(int argc, char** argv)
         if(foundReco) 
         {
           inTree->GetEntry(entry); //TODO: Why does this work when SetBranchStatus() doesn't?  mysteriesOfTheUniverse.push_back(this)
+          if(!outTree) std::cerr << "Did some reconstruction, but output TTree has not been created!\n";
           outTree->Fill();
         }
+        //else std::cout << "No reconstruction objects to save for event " << entry << "\n";
 
         //Next, call analysis plugins
         for(const auto& ana: anaAlgs) ana->Analyze();
 
         if(entry%100 == 0 || entry < 100) std::cout << "Finished processing event " << entry << "\n";
-        if(entry > options.Get<size_t>("--n-events")) break; 
+        if(entry == options.Get<size_t>("--n-events")) break; 
 
         //TODO: Use gGeoManager in plugins for now, but consider retrieving TGeoManager from current file instead.  
       }
     }
    
-    //Write out the reconstruced TTree.  
-    outFile->cd();
-    outTree->Write();
+    //Write out the reconstruced TTree if there was any reconstruction done.  
+    if(outFile)
+    {
+      if(!outTree) std::cerr << "Output file was created, but there is no output TTree!\n";
+      outFile->cd();
+      outTree->Write();
 
-    //Copy geometry and edepsim PassThru information from last file (?)
-    //TODO: Copy from all files
-    //For now, assuming that the geometry is the same in each file and the pass-thru information is an empty directory.  
-    auto man = (TGeoManager*)inFile->Get("EDepSimGeometry");
-    //auto passThru = (TDirectoryFile*)inFile->Get("DetSimPassThru"); //This has always been empty so far, so not copying it for now.
-    outFile->cd();
-    man->Write();
-    //passThru->Write();
-    
-    outFile->Write(); //TODO: Is this necessary?
+      //Copy geometry and edepsim PassThru information from last file (?)
+      //TODO: Copy from all files
+      //For now, assuming that the geometry is the same in each file and the pass-thru information is an empty directory.  
+      auto man = (TGeoManager*)inFile->Get("EDepSimGeometry");
+      //auto passThru = (TDirectoryFile*)inFile->Get("DetSimPassThru"); //This has always been empty so far, so not copying it for now.
+      outFile->cd();
+      man->Write();
+      //passThru->Write();
+      
+      outFile->Write(); //TODO: Is this necessary?
+    }
+    else std::cout << "No output file created, so nothing to write.  Histograms written when main() ends.\n";
   }
   catch(const std::exception& e)
   {
