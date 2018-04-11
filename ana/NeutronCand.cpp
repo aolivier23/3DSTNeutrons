@@ -73,7 +73,6 @@ namespace ana
       }
     }
 
-    //TODO: Surely there is some way to just get the size.  Maybe by subtracting iterators?
     fNCand->Fill(fClusters.GetSize()); 
 
     std::map<int, std::vector<pers::MCCluster>> FSToCands; //Map of FS neutron to the candidates it is responsible for

@@ -70,6 +70,12 @@ int main(int argc, char** argv)
     const auto inFiles = util::RegexFilesPath<std::string>(options["--regex"], options["--path"]);
     const std::string outFileName;
 
+    if(inFiles.empty())
+    {
+      std::cerr << "No files found at path " << options["--path"] << " that match regular expression " << options["--regex"] << "\n";
+      return 6;
+    }
+
     //Set up to read files
     auto inFile = TFile::Open(inFiles.begin()->c_str(), "READ");
     if(!inFile)
@@ -207,10 +213,11 @@ int main(int argc, char** argv)
   catch(const std::exception& e)
   {
     std::cerr << "Caught STL exception:\n" << e.what() << "\n";
-    return 1;
+    return 4;
   }
   catch(const util::exception& e)
   {
     std::cerr << e.what() << "\n";
+    return 5;
   }
 }

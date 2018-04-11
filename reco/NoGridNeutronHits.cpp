@@ -237,7 +237,7 @@ namespace plgn
   template <>
   void RegCmdLine<reco::NoGridNeutronHits>(opt::CmdLine& opts)
   {
-    opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "2.0");
+    opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
     opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "100.");
   }
 }
