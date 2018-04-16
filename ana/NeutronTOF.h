@@ -40,10 +40,16 @@ namespace ana
       //TH2D* fNeutronHitTimeVersusTrueEnergy; //Neutron hit time versus true energy
       
       TH1D* fBeta; //v/c
+      TH1D* fTrueBeta; //v/c from true FS neutron initial energy
+      TH1D* fBetaRes; //How well can I tell that beta is not really 1 
 
       //PRNG for smearing vertex times
       std::mt19937 fGen; //Mersenne Twister engine with period of 19937
       std::normal_distribution<double> fGaus; //Normal distribution object (Gaussian distribution)
+
+      //Configuration parameters I want to keep around for statistics
+      double fPosRes; //Position resolution for MCHits
+      double fTimeRes; //Time resolution for MCHits
   };
 }
 

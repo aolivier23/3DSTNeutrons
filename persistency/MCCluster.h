@@ -25,15 +25,20 @@ namespace pers
       //TrackIDs that contributed to this MCCluster.  
       std::vector<int> TrackIDs; 
 
-      //The position of the center of this MCCluster along with its' starting time.
-      TLorentzVector Position; 
+      TLorentzVector Position; //The position of the center of this MCCluster along with its' average time.
+      TLorentzVector FirstPosition; //The position of the "first" MCHit in this cluster.  Using "first" = "closest to vertex" for now.  
 
       //Parmeters to specifc the size of this MCCluster.  Farthest points from Position.
       float XWidth;
       float YWidth;
       float ZWidth;      
 
-      ClassDef(MCCluster, 1);
+      //Indices of MCHits in this cluster for each hit algorithm used to make this MCCluster
+      std::map<std::string, std::vector<size_t>> fHitAlgToIndices; //TODO: Turn these indices into hits/links/iterators?  I could do this like what I think ART does and 
+                                                                   //      store everything in a Ptr class template that has a unique index, but I'd rather my file format stay 
+                                                                   //      as close to edep-sim as possible.  
+
+      ClassDef(MCCluster, 2); //Bumped to version 2 because I have added data members
   };
 }
 

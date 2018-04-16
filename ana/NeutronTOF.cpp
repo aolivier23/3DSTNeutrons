@@ -31,7 +31,8 @@ namespace ana
 {
   NeutronTOF::NeutronTOF(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fHits(*(config.Reader), (*(config.Options))["--hit-alg"].c_str()), 
                                                                 fGen(std::chrono::system_clock::now().time_since_epoch().count()), 
-                                                                fGaus(0., config.Options->Get<double>("--time-res"))
+                                                                fGaus(0., config.Options->Get<double>("--time-res")), fPosRes(10.), 
+                                                                fTimeRes(config.Options->Get<double>("--time-res"))
   {
     const float timeMax = 100., distMax = 5000.;
     const size_t nTimeBins = timeMax/config.Options->Get<double>("--time-res"), nDistBins = distMax/10.0; //1.0cm bins
@@ -45,6 +46,10 @@ namespace ana
     fNeutronEResidual = config.File->make<TH1D>("NeutronEResidual", "Relative Error in Neutron Energy from TOF;#frac{E_{TOF}-E_{True}}{E_{True}}", 300, -1., 1.);
 
     fBeta = config.File->make<TH1D>("Beta", "Velocity Ratio for Closest Hit to Each FS Neutron;#frac{v}{c}", 50, 0, 1.);
+   
+    fTrueBeta = config.File->make<TH1D>("TrueBeta", "Initial Velocity Ratios for Visible FS Neutrons;#frac{v}{c}", 50, 0, 1.);
+
+    fBetaRes = config.File->make<TH1D>("BetaRes", "How Different is Neutron Speed from c in #sigma_{#beta}s;#sigma_{#beta}s", 20, 0, 20);
   }
 
   void NeutronTOF::DoAnalyze()
@@ -104,6 +109,12 @@ namespace ana
               const auto mass = 939.56563; //MeV/c^2
               const auto energy = mass/std::sqrt(1.-beta*beta); //E = gamma * mc^2 
               fBeta->Fill(beta);
+              const double distUncert = fPosRes/dist; //relative uncertainty in distance for this energy "measurement"
+              const double timeUncert = fTimeRes/deltaT; //relative uncertainty in time for this energy "measurement"
+              const double betaUncert = beta*std::sqrt(distUncert*distUncert+timeUncert*timeUncert); //Uncertainty in beta
+              fBetaRes->Fill((1-beta)/betaUncert); //By how many sigmas is beta different from 1?
+              const double trueGamma = part.Momentum.E()/part.Momentum.Mag();
+              fTrueBeta->Fill(std::sqrt(1.-1./trueGamma/trueGamma));
               fNeutronTOFEnergy->Fill(energy-mass); //TODO: Error bars
 
               const auto trueE = part.Momentum.E();
