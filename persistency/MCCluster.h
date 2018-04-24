@@ -34,7 +34,7 @@ namespace pers
       float ZWidth;      
 
       //Indices of MCHits in this cluster for each hit algorithm used to make this MCCluster
-      std::map<std::string, std::vector<size_t>> fHitAlgToIndices; //TODO: Turn these indices into hits/links/iterators?  I could do this like what I think ART does and 
+      //std::map<std::string, std::vector<size_t>> fHitAlgToIndices; //TODO: Turn these indices into hits/links/iterators?  I could do this like what I think ART does and 
                                                                    //      store everything in a Ptr class template that has a unique index, but I'd rather my file format stay 
                                                                    //      as close to edep-sim as possible.  
 

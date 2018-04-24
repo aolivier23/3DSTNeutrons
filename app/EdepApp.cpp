@@ -180,7 +180,7 @@ int main(int argc, char** argv)
       }
 
       if(outTree) inTree->CopyAddresses(outTree);
-      else std::cout << "There is no output tree, so not copying addresses.\n";
+      else std::cout << "There is no output tree, so not copying addresses.\n"; //TODO: This is only debugging output.  Remove it from release builds?
       inReader.SetTree(inTree);
 
       std::cout << "Processing file " << file << "\n";
@@ -198,7 +198,7 @@ int main(int argc, char** argv)
         if(foundReco) 
         {
           inTree->GetEntry(entry); //TODO: Why does this work when SetBranchStatus() doesn't?  mysteriesOfTheUniverse.push_back(this)
-          if(!outTree) std::cerr << "Did some reconstruction, but output TTree has not been created!\n";
+          if(!outTree) std::cerr << "Did some reconstruction, but output TTree has not been created!\n"; //TODO: This is only debugging output.  Remove it from release builds?
           outTree->Fill();
         }
         //else std::cout << "No reconstruction objects to save for event " << entry << "\n";

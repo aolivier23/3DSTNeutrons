@@ -42,6 +42,7 @@ namespace ana
       TH1D* fBeta; //v/c
       TH1D* fTrueBeta; //v/c from true FS neutron initial energy
       TH1D* fBetaRes; //How well can I tell that beta is not really 1 
+      TH1D* fFSNeutronEnergy; //Energies of FS neutrons "reconstructed" so that I can report an efficiency for any cuts made here
 
       //PRNG for smearing vertex times
       std::mt19937 fGen; //Mersenne Twister engine with period of 19937

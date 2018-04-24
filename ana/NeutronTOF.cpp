@@ -50,6 +50,9 @@ namespace ana
     fTrueBeta = config.File->make<TH1D>("TrueBeta", "Initial Velocity Ratios for Visible FS Neutrons;#frac{v}{c}", 50, 0, 1.);
 
     fBetaRes = config.File->make<TH1D>("BetaRes", "How Different is Neutron Speed from c in #sigma_{#beta}s;#sigma_{#beta}s", 20, 0, 20);
+
+    fFSNeutronEnergy = config.File->make<TH1D>("FSNeutronEnergy", "KE of FS Neutrons that Produced Candidates;Energy [MeV];Events",
+                                               200, 0, 3000);
   }
 
   void NeutronTOF::DoAnalyze()
@@ -74,6 +77,13 @@ namespace ana
     for(const auto& vert: fEvent->Primaries)
     {
       auto vertPos = vert.Position;
+
+      //Require that this is a CC interaction.  I want to avoid the problem of NC vertex reconstruction for now since it may not be 
+      //possible in many cases. 
+      if(std::find_if(vert.Particles.begin(), vert.Particles.end(), [](const auto& part) { return part.PDGCode == 13 || part.PDGCode == -13 
+                                                                                                  || part.PDGCode == 12 || part.PDGCode == -13; })
+         == vert.Particles.end()) continue; //TODO: Find a way to do this that doesn't use continue
+
       for(const auto& part: vert.Particles)
       {
         if(part.Name == "neutron")
@@ -119,6 +129,7 @@ namespace ana
 
               const auto trueE = part.Momentum.E();
               fNeutronEResidual->Fill((energy - trueE)/trueE);
+              fFSNeutronEnergy->Fill(trueE);
 
               if(beta < 0.02) 
               {

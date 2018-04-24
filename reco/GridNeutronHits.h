@@ -36,7 +36,8 @@ namespace reco
       //Internal functions
       std::set<int> NeutDescend(); //Should be const, but I think TTreeReaderArray is not const-correct.
       //TODO: The loop in neighbors *could* be unwrapped at compile-time, but I'm not sure it's worth the extreme amount of effort needed.
-      bool Neighbors(const std::pair<GridHits::Triple, GridHits::HitData>& cand, const std::map<GridHits::Triple, GridHits::HitData>& hits, const size_t nCubes) const;
+      bool Neighbors(const std::pair<GridHits::Triple, GridHits::HitData>& cand, const std::map<GridHits::Triple, GridHits::HitData>& hits, 
+                     const size_t nCubes, std::list<GridHits::Triple>& neutronNeighbors) const;
   };
 }
 
