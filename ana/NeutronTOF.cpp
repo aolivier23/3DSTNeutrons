@@ -129,7 +129,7 @@ namespace ana
 
               const auto trueE = part.Momentum.E();
               fNeutronEResidual->Fill((energy - trueE)/trueE);
-              fFSNeutronEnergy->Fill(trueE);
+              fFSNeutronEnergy->Fill(trueE-part.Momentum.Mag()); //Fill with kinetic energy
 
               if(beta < 0.02) 
               {
