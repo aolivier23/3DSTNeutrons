@@ -8,4 +8,7 @@
 #pragma link C++ class pers::MCCluster+;
 #pragma link C++ class std::vector<pers::MCCluster>+;
 
+#pragma link C++ class pers::NeutronCand+;
+#pragma link C++ class std::vector<pers::NeutronCand>+;
+
 #endif

@@ -8,6 +8,10 @@
 #include <TObject.h>
 #include <TLorentzVector.h>
 
+//c++ includes
+#include <set>
+#include <map>
+
 #ifndef PERS_NEUTRONCAND_H
 #define PERS_NEUTRONCAND_H
 
@@ -21,16 +25,20 @@ namespace pers
       
       //Energy deposited in this NeutronCand
       double TOFEnergy; //Energy estimated from TOF of clusters
+      double Beta; //Velocity from TOF and distance from vertex over speed of light 
+      double SigmaBeta; //Uncertiainty on Beta
       double DepositedEnergy; //Energy deposited by clusters
+      
+      //"Beginning" of this NeutronCand as defined by algorithm that produced it.  Will be used to study angle of candidate w.r.t. true neutron.
+      TLorentzVector Start; //All in mm like edep-sim
 
       //TrackIDs that contributed to this NeutronCand.  
-      std::set<int> TrackIDs; 
+      std::set<int> TrackIDs; //TODO: Do I need this if I can backtrack to MCClusters?   
 
-
-      //Indices of MCHits in this cluster
-      std::map<std::string, std::vector<size_t>> fClusterAlgToIndices; //TODO: Turn these indices into clusters/links/iterators?  I could do this like what I think ART 
-                                                                       //      does and store everything in a Ptr class template that has a unique index, but I'd rather 
-                                                                       //      my file format stay as close to edep-sim as possible.  
+      //Indices of MCClusters in this neutron candidate
+      std::map<std::string, std::vector<size_t>> ClusterAlgToIndices; //TODO: Turn these indices into clusters/links/iterators?  I could do this like what I think ART 
+                                                                      //      does and store everything in a Ptr class template that has a unique index, but I'd rather 
+                                                                      //      my file format stay as close to edep-sim as possible.  
 
       ClassDef(NeutronCand, 1);
   };
