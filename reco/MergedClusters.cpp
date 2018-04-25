@@ -88,6 +88,9 @@ namespace reco
       clusterToHits.push_back(seed); //Put this cluster into the list of all clusters
     }
 
+    //Get vertex position for deciding which MCHit is the closest to vertex.
+    const auto& vertPos = fEvent->Primaries.front().Position; //TODO: What should I do if there are multiple vertices?
+
     //Calculate cluster sizes
     for(auto& pair: clusterToHits)
     {
@@ -100,6 +103,13 @@ namespace reco
       //Set cluster's position to energy-weighted centroid
       clust.Position = std::accumulate(hits.begin(), hits.end(), TLorentzVector(0., 0., 0., 0.), 
                                        [](auto sum, const auto& hit) { return sum+hit.Position*hit.Energy; })*(1./clust.Energy);
+
+      //Set cluster's starting position to hit closest to the vertex.  
+      clust.FirstPosition = std::min_element(hits.begin(), hits.end(), [&vertPos](const auto& first, const auto& second)
+                                                                       {
+                                                                         return (first.Position-vertPos).Vect().Mag() < 
+                                                                                (second.Position-vertPos).Vect().Mag();
+                                                                       })->Position;
 
       //Now that I know clust's starting position, find its size.
       const auto xMax = std::max_element(hits.begin(), hits.end(), [&clust](const auto& first, const auto& second) 
