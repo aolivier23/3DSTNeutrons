@@ -85,7 +85,7 @@ namespace reco
       pers::NeutronCand seed;
       seed.DepositedEnergy = outer.Energy;
       seed.Start = outer.FirstPosition;
-      seed.ClusterAlgToIndices[fClusterAlgName].push_back(outerClustPos.fIndex); //TODO: Is each map element sorted?  
+      seed.ClusterAlgToIndices[fClusterAlgName].push_back(outerClustPos.fIndex); 
 
       const auto diff = seed.Start-vertPos;
       const auto dist = diff.Vect().Mag();
@@ -101,12 +101,21 @@ namespace reco
       //Look for other seeds that are close enough to this seed that the same FS neutron could have visited both points.
       seeds.remove_if([this, &seed, &vertPos, &c](const auto& other)
                       {
-                        const auto relDiff = seed.Start - other.Start;
-                        const auto relBeta = relDiff.Vect().Mag()/relDiff.T()/c;
+                        using namespace std::placeholders;
+                        auto closest = std::min_element(other.ClusterAlgToIndices.find(fClusterAlgName)->second.begin(), 
+                                                        other.ClusterAlgToIndices.find(fClusterAlgName)->second.end(), 
+                                                        [this, &seed](const auto& first, const auto& second)
+                                                        {
+                                                          const auto& firstClust = fClusters[first];
+                                                          const auto& secondClust = fClusters[second];
+                                                          return ::less(firstClust.FirstPosition, secondClust.FirstPosition, seed.Start);
+                                                        });
 
-                        //TODO: Do this for each cluster in other? 
+                        const auto relDiff = seed.Start - closest.FirstPosition;
+                        const auto relBeta = relDiff.Vect().Mag()/relDiff.T()/c;
+      
                         const auto& first = ::less(seed.Start, other.Start, vertPos)?seed:other;
-                        if(relBeta < first.Beta) //TODO: Take into account energy deposited in other seeds so far. 
+                        if(relBeta < first.Beta) //TODO: Take into account energy deposited in seed so far. 
                                                  //TODO: Rough parameterization of "invisible" energy loss of neutrons versus distance?
                         {
                           //Merge other into seed
@@ -114,7 +123,15 @@ namespace reco
                           //from persistency objects for now.  
                           seed.DepositedEnergy += other.DepositedEnergy;
                           seed.Start = first.Start;
-                          seed.ClusterAlgToIndices.insert(other.ClusterAlgToIndices.begin(), other.ClusterAlgToIndices.end());
+
+                          //merge maps
+                          auto& seedMap = seed.ClusterAlgToIndices;
+                          const auto& otherMap = other.ClusterAlgToIndices;
+                          for(const auto& otherPair: otherMap)
+                          {
+                            seedMap[otherPair.first].insert(seedMap[otherPair.first].end(), otherPair.second.begin(), otherPair.second.end());
+                          }
+
                           seed.Beta = first.Beta;
                           seed.SigmaBeta = first.SigmaBeta;
 
