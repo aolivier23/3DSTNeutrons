@@ -43,6 +43,22 @@ namespace ana
       TH2D* fAngleVsDistFromVtx; //Angle of candidate w.r.t. FS neutron versus distance from vertex to show why angle distribution has 
                                  //peak at 0
       TH1D* fNeutronsPerCand; //Number of neutrons assigned to each candidate
+
+      //Plots to investigate a likelihood-based fitting procedure.  
+      TH2D* fClusterNumVsEDep; //Cluster number in time-ordering versus energy deposited in cluster
+      TTree* fLikelihoodTree; //TTree with one entry for each cluster that contains information about how that cluster relates to other 
+                              //clusters for its' parent true neutron
+                              
+      //Variables for fLikelihoodTree
+      unsigned int fClusterNumber; //Position in time-ordered list of clusters for parent
+      unsigned int fClustersFromEnd; //Distance from end of time-ordered list of clusters for parent
+      float fDeltaAngle; //Bend in trajectory over this cluster
+      float fEDep; //Energy deposited in this cluster
+      float fELeft; //Energy left to be deposited by this neutron
+      float fEFromTOF; //Energy from TOF for the first cluster of this cluster's parent neutron
+      float fDistFromPrev; //Distance between this cluster and the next cluster
+      float fDeltaT; //Time difference between clusters
+      float fTrueE; //True energy of the neutron that produced a cluster
   };
 }
 

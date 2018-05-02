@@ -13,6 +13,9 @@
 #include "IO/Option/runtime/Options.h"
 #include "IO/Option/runtime/ExactlyOnce.h"
 
+//c++ includes
+#include <numeric>
+
 namespace plgn
 {
   //Register command line options
@@ -27,7 +30,9 @@ namespace plgn
 namespace ana
 {
   NeutronCand::NeutronCand(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fClusters(*(config.Reader), (*(config.Options))["--cluster-alg"].c_str()), 
-                                                                  fMinEnergy(config.Options->Get<double>("--E-min"))
+                                                                  fMinEnergy(config.Options->Get<double>("--E-min")), fClusterNumber(-314), 
+                                                                  fClustersFromEnd(-314), fDeltaAngle(-314), fEDep(-314), fELeft(-314), 
+                                                                  fEFromTOF(-314), fDistFromPrev(-314), fDeltaT(-314), fTrueE(-314)
   {
     fCandidateEnergy = config.File->make<TH1D>("CandidateEnergy", "Energy Specturm of Neutron Candidates;Energy [MeV];Events",
                                                150, 0, 150);
@@ -52,10 +57,37 @@ namespace ana
 
     fNeutronsPerCand = config.File->make<TH1D>("NeutronsPerCand", "Number of Neutrons per Candidate;Neutrons;Candidates", 
                                                10, 0, 10);
+     
+    fClusterNumVsEDep = config.File->make<TH2D>("ClusterNumVsEDep", "Position in Time-Ordering of Clusters versus Vluster Energy Deposited "
+                                                                    "per True Neutron;Energy Deposited [MeV];Cluster Number;Neutrons", 
+                                                150, 0, 150, 20, 0, 20);
+  
+    //Set up output TTree
+    fLikelihoodTree = config.File->make<TTree>("LikelihoodTree", "Variables for Clusters based on their true neutron parent");
+    fLikelihoodTree->Branch("ClusterNumber", &fClusterNumber);
+    fLikelihoodTree->Branch("ClustersFromEnd", &fClustersFromEnd);
+    fLikelihoodTree->Branch("DeltaAngle", &fDeltaAngle);   
+    fLikelihoodTree->Branch("EDep", &fEDep);
+    fLikelihoodTree->Branch("ELeft", &fELeft);
+    fLikelihoodTree->Branch("EFromTOF", &fEFromTOF);
+    fLikelihoodTree->Branch("DistFromPrev", &fDistFromPrev);
+    fLikelihoodTree->Branch("DeltaT", &fDeltaT);
+    fLikelihoodTree->Branch("TrueE", &fTrueE);
   }
 
   void NeutronCand::DoAnalyze()
   {
+    //Reset tree branches to default values
+    fClusterNumber = -314;
+    fClustersFromEnd = -314;
+    fDeltaAngle = -314;
+    fEDep = -314;
+    fELeft = -314;
+    fEFromTOF = -314;
+    fDistFromPrev = -314;
+    fDeltaT = -314;
+    fTrueE = -314;
+
     std::map<int, int> TrackIDsToFS; //Map from TrackIDs to FS neutron
     const auto trajs = fEvent->Trajectories;
 
@@ -111,10 +143,55 @@ namespace ana
     for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag());
 
     //Now, look for all of the candidates for each FS neutron.  
-    for(const auto& FS: FSToCands) 
+    for(auto& FS: FSToCands) 
     {
       const auto FSPos = trajs[FS.first].Points[0].Position;
-      const auto& closest = std::min_element(FS.second.begin(), FS.second.end(), [&FSPos](const auto& first, const auto& second)
+
+      //Sort candidates first according to time, then according to distance from vertex to within time resolution
+      auto& clusters = FS.second;
+      std::sort(clusters.begin(), clusters.end(), [&FSPos](auto& first, auto& second) 
+                                                  {
+                                                    const auto firstDiff = first.Position - FSPos; 
+                                                    const auto secondDiff = second.Position - FSPos;
+                                                    if(std::fabs((secondDiff - firstDiff).T()) > 0.7) return firstDiff.T() < secondDiff.T(); 
+                                                    //TODO: Make 0.7ns timing resolution a parameter
+                                                    return firstDiff.Vect().Mag() < secondDiff.Vect().Mag();
+                                                  });
+
+      TLorentzVector prevPrevPos = FSPos;
+      TLorentzVector prevPos = FSPos;
+      if(clusters.size() > 0)
+      {
+        const auto diff = clusters[0].Position - FSPos;
+        const float c = 299.792; //Speed of light = 300 mm/ns
+        const auto beta = diff.Vect().Mag()/diff.T()/c;
+        const auto mass = 939.56563; //MeV/c^2
+        fEFromTOF = mass/std::sqrt(1.-beta*beta); //E = gamma * mc^2
+      }
+      const auto eDepTotal = std::accumulate(clusters.begin(), clusters.end(), 0.f, [](const auto sum, const auto& clust) 
+                                                                                    { return sum + clust.Energy;});
+      float sumE = 0.;
+      for(size_t pos = 0; pos < clusters.size(); ++pos)
+      {
+        fClusterNumVsEDep->Fill(clusters[pos].Energy, pos);
+        sumE += clusters[pos].Energy;
+        
+        //Fill tree for studying likelihood strategies
+        fClusterNumber = pos;
+        fClustersFromEnd = clusters.size() - pos;
+        fDeltaAngle = (prevPos - prevPrevPos).Vect().Unit().Dot((clusters[pos].Position - prevPos).Vect().Unit());
+        fEDep = clusters[pos].Energy;
+        fELeft = eDepTotal-sumE;
+        fDistFromPrev = (prevPos - clusters[pos].Position).Vect().Mag();
+        fDeltaT = (clusters[pos].Position - prevPos).T();
+        fTrueE = trajs[FS.first].InitialMomentum.E();
+        fLikelihoodTree->Fill();
+
+        prevPrevPos = prevPos;
+        prevPos = clusters[pos].Position;
+      }
+
+      const auto closest = std::min_element(FS.second.begin(), FS.second.end(), [&FSPos](const auto& first, const auto& second)
                                                                                  { 
                                                                                    return   (first.Position-FSPos).Vect().Mag2() 
                                                                                           < (second.Position-FSPos).Vect().Mag2();
