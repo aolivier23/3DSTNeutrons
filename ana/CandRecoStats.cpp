@@ -55,6 +55,9 @@ namespace ana
 
     fNeutronsPerCand = config.File->make<TH1D>("NeutronsPerCand", "Number of Neutrons per Candidate;Neutrons;Candidates", 
                                                10, 0, 10);
+
+    //fLostNeutronE = config.File->make<TH1D>("LostNeutronE", "Energy of Neutrons that were Grouped into a Candidate;Neutrons;KE [MeV]", 
+    //                                        200, 0, 3000);
   }
 
   void CandRecoStats::DoAnalyze()
@@ -86,6 +89,25 @@ namespace ana
       std::set<int> FSIds; //The TrackIDs of FS neutrons responsible for this candidate.  Should almost always be only 1.
       for(const auto& id: cand.TrackIDs) FSIds.insert(TrackIDsToFS[id]); 
       fNeutronsPerCand->Fill(FSIds.size());
+      
+      auto mostE = std::max_element(FSIds.begin(), FSIds.end(), [&trajs](const auto& first, const auto& second)
+                                                                {
+                                                                  const auto& firstTraj = trajs[first];
+                                                                  const auto& secondTraj = trajs[second];
+                                                                  return (firstTraj.InitialMomentum.E() - firstTraj.InitialMomentum.Mag()) 
+                                                                         < (secondTraj.InitialMomentum.E() - secondTraj.InitialMomentum.Mag());
+                                                                });
+
+      //TODO: Restate this problem.  I think I really want to plot KE for neutrons whose first clusters are not the first cluster in a candidate.
+      /*for(const auto& id: FSIds)
+      {
+        if(*id != mostE) 
+        {
+          const auto& traj = trajs[*id];
+          fLostNeutronE->Fill(traj.InitialMomentum.E() - traj.InitialMomentum.Mag())
+        }
+      }*/
+
       if(FSIds.size() > 1) std::cout << "Got " << FSIds.size() << " true neutrons for one candidate in event " << fEvent->EventId << "\n";
 
       double sumCauseE = 0.; //Sum of energy from all causes of this candidate      

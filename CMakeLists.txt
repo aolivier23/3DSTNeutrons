@@ -50,6 +50,7 @@ add_subdirectory(reco)
 add_subdirectory(ana)
 add_subdirectory(app)
 add_subdirectory(grid)
+add_subdirectory(conf)
 
 #Make the results of this build into a package.  Designed to be distributed as a .tar.gz
 #Learned to do this from http://agateau.com/2009/cmake-and-make-dist/

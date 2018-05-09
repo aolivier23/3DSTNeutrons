@@ -43,6 +43,8 @@ namespace ana
       TH2D* fAngleVsDistFromVtx; //Angle of candidate w.r.t. FS neutron versus distance from vertex to show why angle distribution has 
                                  //peak at 0
       TH1D* fNeutronsPerCand; //Number of neutrons assigned to each candidate
+      //TH1D* fLostNeutronE; //When multiple neutrons are grouped into one candidate, what are the energies of the neutrons that 
+                           //are not the most energetic?
   };
 }
 
