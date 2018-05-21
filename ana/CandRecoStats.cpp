@@ -13,6 +13,9 @@
 #include "IO/Option/runtime/Options.h"
 #include "IO/Option/runtime/ExactlyOnce.h"
 
+//c++ includes
+#include <numeric>
+
 namespace plgn
 {
   //Register command line options
@@ -55,6 +58,13 @@ namespace ana
 
     fNeutronsPerCand = config.File->make<TH1D>("NeutronsPerCand", "Number of Neutrons per Candidate;Neutrons;Candidates", 
                                                10, 0, 10);
+
+    fNNeutronsResidual = config.File->make<TH1D>("NNeutronsResidual", "Number of True Neutrons - Number of Candidates;N_true - N_cand;Events", 
+                                                 10, -5, 5);
+   
+    fNeutronEResidual = config.File->make<TH1D>("NeutronEResidual", "Relative Energy Lost to Neutrons Not Seen;"
+                                                                    "#frac{E_{neutron, true} - E_{neutron, reco}}{E_{neutron, true}};Events", 
+                                                150, -3, 3);
 
     //fLostNeutronE = config.File->make<TH1D>("LostNeutronE", "Energy of Neutrons that were Grouped into a Candidate;Neutrons;KE [MeV]", 
     //                                        200, 0, 3000);
@@ -130,6 +140,15 @@ namespace ana
     }
 
     for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag());
+
+    const double trueVisNeutronE = std::accumulate(FSToCands.begin(), FSToCands.end(), 0., [&trajs](auto sum, const auto& pair)
+                                                   {
+                                                     return sum + trajs[pair.first].InitialMomentum.E();
+                                                   });
+    const double totalCandE = std::accumulate(fCands.begin(), fCands.end(), 0., [](auto sum, const auto& cand) { return sum + cand.TOFEnergy; });
+
+    fNNeutronsResidual->Fill((int)(FSToCands.size()) - (int)(fCands.GetSize()));
+    fNeutronEResidual->Fill((trueVisNeutronE - totalCandE)/trueVisNeutronE);
 
     //Now, look for all of the candidates for each FS neutron.  
     for(const auto& FS: FSToCands) 

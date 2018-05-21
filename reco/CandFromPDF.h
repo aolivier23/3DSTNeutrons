@@ -43,7 +43,7 @@ namespace reco
       double fTimeRes; //Time resolution for 3DST in ns
       double fPosRes; //Position resolution for 3DST in mm
       std::unique_ptr<TH2D> fBetaVsEDep; //PDF of Beta between clusters versus energy deposited in a cluster
-      double fSmallestProb; //Probability of least-populous non-empty bin in fBetaVsEDep for use in penalty likelihood terms
+      double fPenaltyTerm; //Likelihood function penalty per missing hit
   };
 }
 

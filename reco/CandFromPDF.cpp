@@ -75,7 +75,7 @@ namespace reco
     if(!hist) std::cerr << "Failed to find histogram named BetaVsEDep in file " << (*(config.Options))["--PDF-file"] << "\n";
     fBetaVsEDep.reset((TH2D*)(hist->Clone()));
     if(fBetaVsEDep->Integral() > 1.0) fBetaVsEDep->Scale(1./fBetaVsEDep->Integral()); //Normalize PDF if it's not already normalized
-    fSmallestProb = fBetaVsEDep->GetEntries(); //1./fBetaVsEDep->GetNbinsX()/fBetaVsEDep->GetNbinsY(); 
+    fPenaltyTerm = 1.5/fBetaVsEDep->GetEntries(); //2.e-20/fBetaVsEDep->GetNbinsX()/fBetaVsEDep->GetNbinsY(); //1./fBetaVsEDep->GetEntries();  
   }
 
   bool CandFromPDF::DoReconstruct()
@@ -99,110 +99,108 @@ namespace reco
     {
       timeBinnedClusters[(unsigned int)((*cluster).FirstPosition.T()/fTimeRes)].push_back(cluster);
     }
-    const auto nBins = timeBinnedClusters.size();
+     
+    std::cout << "fClusters.GetSize() is " << fClusters.GetSize() << "\n";
 
     for(bool empty = ::empty(timeBinnedClusters); !empty; empty = ::empty(timeBinnedClusters))
     {
-      //Next, produce candidates that contain one cluster from each time bin
-      //TODO: I am getting an empty cands with at least one element in timeBinnedClusters
-      std::vector<std::vector<decltype(fClusters.begin())>> cands;
-
-      const auto first = timeBinnedClusters.begin();
-      if(first != timeBinnedClusters.end()) //TODO: This should never happen
+      //Next, produce candidates that contain one cluster from each time bin.  To keep memory usage reasonable, only hold one 
+      //candidate in memory at a time.  
+      
+      //Create a vector of positions in bins.  Represents how the current candidate relates to other possible combinations of 
+      //clusters.  Going to the next combination of clusters works somewhat like how I might build a binary adding machine.  
+      //Skip bins whose positions are set to the end() iterator.  Also create a vector of end iterators to make loop ending condition simpler.
+      std::vector<decltype(timeBinnedClusters.begin()->second.begin())> currentCand, begin, end;
+      for(auto& bin: timeBinnedClusters) 
       {
-        const auto& firstBin = *first;
-        //Seed with first bin
-        for(const auto& cluster: firstBin.second) cands.push_back({cluster}); 
-        cands.emplace(cands.begin()); //Allow for skipping the first layer of clusters
+        currentCand.push_back(bin.second.begin()); //Set vector to the first possible combination of clusters
+        begin.push_back(bin.second.begin());
+        end.push_back(bin.second.end());
+      }
+       
+      //Since I'm looking for the largest likelihood value, keep track of the best group of clusters as well as the best likelihood so far. 
+      auto best = currentCand; //TODO: Is this a reasonable default?
+      double bestLikelihood = -std::numeric_limits<double>::max(); //TODO: set this to the likelihood of the first candidate instead?
 
-        auto start = timeBinnedClusters.begin();
-        ++start;
-        for(auto iter = start; iter != timeBinnedClusters.end(); ++iter)
+      while(currentCand != end)
+      {
+        double likelihood = 0.;
+        for(size_t pos = 0; pos < currentCand.size(); ++pos)
         {
-          const auto& bin = *iter;
-          for(const auto& cluster: bin.second)
+          const auto iter = currentCand[pos];
+          if(iter == end[pos]) likelihood += std::log10(fPenaltyTerm); //Penalty term for missing bins
+          else
           {
-            auto newCands = cands;
-            for(auto& cand: cands) 
-            {
-              auto newCand = cand;
-              newCand.push_back(cluster);
-              newCands.push_back(newCand); //TODO: Only add cluster to candidate if cluster is within distance light could travel?
-            }
-            cands = newCands;
+            //Otherwise, add the log-likelihood for this bin to the total for this candidate
+            const auto diff = (*(*iter)).FirstPosition - vertPos;
+            likelihood += std::log10(fBetaVsEDep->GetBinContent(fBetaVsEDep->FindBin((*(*iter)).Energy,
+                                     std::fabs(diff.Vect().Mag()/diff.T()/c))));
           }
         }
 
-        //Remove any completely empty vectors
-        cands.erase(cands.begin());
+        //If this is a better match than the current best match, update the best match
+        if(likelihood > bestLikelihood)
+        {
+          std::cout << "Selecting new best candidate with size " << currentCand.size() 
+                    << " and likelihood " << bestLikelihood << " -> " << likelihood << "\n";
+          best = currentCand;
+          bestLikelihood = likelihood;
+        }
+
+        //Update currentCand.  Works somewhat like using several bits to build an adding machine.
+        for(int pos = currentCand.size()-1; pos > -1;)
+        {
+          if(currentCand[pos] == end[pos]) //If this iterator was already end() BEFORE I updated anything, I've already skipped it's bin, 
+                                           //so set it back to begin (as if I were handling arbitrary-base multi-digit addition) and update the 
+                                           //next iterator by continuing the loop. 
+          {
+            currentCand[pos] = begin[pos];
+            --pos;
+          }
+          else //If I am not done with looping over this bin, update it.  It may become the un-dereferenceable end() iterator, and my loop should 
+               //be ready to handle that by skipping this bin.  
+          {
+            ++currentCand[pos];
+            break;
+          }
+        }
       }
-      else std::cerr << "timeBinnedClusters doesn't have any elements!\n";
 
-      //Then, pick the candidate with the best log-likelihood
-      const auto best = std::max_element(cands.begin(), cands.end(), [this, &vertPos, &c, &nBins](const auto& first, const auto& second)
-                                                                     {
-                                                                       double firstLike = 0.;
-                                                                       for(const auto& iter: first) 
-                                                                       {
-                                                                         const auto diff = ((*iter).Position - vertPos);
-                                                                         firstLike += std::log10(fBetaVsEDep->GetBinContent(
-                                                                         fBetaVsEDep->FindBin((*iter).Energy, 
-                                                                                               std::fabs(diff.Vect().Mag()/diff.T()/c))));
-                                                                       }
-                                                                       //Penalty term for missing bins
-                                                                       firstLike += (nBins - first.size())*std::log10(fSmallestProb);
-
-                                                                       double secondLike = 0.;
-                                                                       for(const auto& iter: second)
-                                                                       {
-                                                                         const auto diff = ((*iter).Position - vertPos);
-                                                                         secondLike += std::log10(fBetaVsEDep->GetBinContent(
-                                                                         fBetaVsEDep->FindBin((*iter).Energy,  
-                                                                                               std::fabs(diff.Vect().Mag()/diff.T()/c))));
-                                                                       }
-                                                                       //Penalty term for missing bins
-                                                                       secondLike += (nBins - second.size())*std::log10(fSmallestProb);
-
-                                                                       //return firstLike/first.size() < secondLike/second.size();
-                                                                       return firstLike < secondLike; 
-                                                                       //TODO: Penalty term instead of likelihood per clusters?  What does this 
-                                                                       //      mean?
-                                                                     });
+      //Construct bestCand by skipping end() placeholders in best
+      std::vector<decltype(fClusters.begin())> bestCand;
+      for(size_t pos = 0; pos < best.size(); ++pos)
+      {
+        if(best[pos] != end[pos]) bestCand.push_back(*(best[pos]));
+      }
 
       //Construct a NeutronCand from the best group of clusters found
-      if(best != cands.end())
+      std::cout << "bestCand.size() is " << bestCand.size() << "\n";
+      pers::NeutronCand neutron;
+      const auto& first = *(*(bestCand.begin()));
+      const auto diff = first.FirstPosition - vertPos;
+      const auto dist = diff.Vect().Mag();
+      const auto deltaT = diff.T();
+      neutron.Beta = dist/deltaT/c;
+      neutron.SigmaBeta = neutron.Beta*std::sqrt(10.*10./dist/dist+fTimeRes*fTimeRes/deltaT/deltaT); //10mm position resolution assumed
+      neutron.Start = first.FirstPosition;
+      for(const auto& iter: bestCand)
       {
-        const auto& bestCand = *best;
-        std::cout << "bestCand.size() is " << bestCand.size() << "\n";
-        pers::NeutronCand neutron;
-        const auto& first = *(*(bestCand.begin()));
-        const auto diff = first.FirstPosition - vertPos;
-        const auto dist = diff.Vect().Mag();
-        const auto deltaT = diff.T();
-        neutron.Beta = dist/deltaT/c;
-        neutron.SigmaBeta = neutron.Beta*std::sqrt(10.*10./dist/dist+fTimeRes*fTimeRes/deltaT/deltaT); //10mm position resolution assumed
-        neutron.Start = first.FirstPosition;
-        for(const auto& iter: bestCand)
-        {
-          neutron.DepositedEnergy += (*iter).Energy;
-          neutron.ClusterAlgToIndices["CandFromPDF"].push_back(iter.fIndex);
-        }
-        neutrons.push_back(neutron);
+        neutron.DepositedEnergy += (*iter).Energy;
+        neutron.ClusterAlgToIndices["CandFromPDF"].push_back(iter.fIndex);
+      }
+      neutrons.push_back(neutron);
 
-        //Remove these clusters from consideration for other candidates
-        for(const auto& pos: bestCand) 
+      //Remove these clusters from consideration for other candidates
+      for(const auto& pos: bestCand) 
+      {
+        auto bin = timeBinnedClusters.find((unsigned int)((*pos).FirstPosition.T()/fTimeRes));
+        if(bin != timeBinnedClusters.end())
         {
-          auto bin = timeBinnedClusters.find((unsigned int)((*pos).FirstPosition.T()/fTimeRes));
-          if(bin != timeBinnedClusters.end())
-          {
-            auto& values = bin->second;
-            auto found = std::find(values.begin(), values.end(), pos);
-            if(found != values.end()) values.erase(found);
-          }
+          auto& values = bin->second;
+          auto found = std::find(values.begin(), values.end(), pos);
+          if(found != values.end()) values.erase(found);
         }
       }
-      else std::cerr << "Failed to remove any clusters!  cands.size() is " << cands.size() << ".  timeBinnedClusters.size() is " 
-                     << timeBinnedClusters.size() << "\n";
     } //While there are clusters remaining
 
     //Calculate candidate aggregate properties
