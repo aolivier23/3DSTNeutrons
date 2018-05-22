@@ -125,7 +125,7 @@ namespace reco
       while(currentCand != end)
       {
         double likelihood = 0.;
-        for(size_t pos = 0; pos < currentCand.size(); ++pos)
+        for(size_t pos = 0; pos < currentCand.size() && likelihood > bestLikelihood; ++pos)
         {
           const auto iter = currentCand[pos];
           if(iter == end[pos]) likelihood += std::log10(fPenaltyTerm); //Penalty term for missing bins
@@ -133,8 +133,8 @@ namespace reco
           {
             //Otherwise, add the log-likelihood for this bin to the total for this candidate
             const auto diff = (*(*iter)).FirstPosition - vertPos;
-            likelihood += std::log10(fBetaVsEDep->GetBinContent(fBetaVsEDep->FindBin((*(*iter)).Energy,
-                                     std::fabs(diff.Vect().Mag()/diff.T()/c))));
+            likelihood += std::log10(fBetaVsEDep->GetBinContent(fBetaVsEDep->FindBin(1./std::sqrt((*(*iter)).Energy),
+                                     exp(std::fabs(diff.Vect().Mag()/diff.T()/c)))));
           }
         }
 
