@@ -45,6 +45,7 @@ namespace ana
       TH1D* fNeutronsPerCand; //Number of neutrons assigned to each candidate
       TH1D* fNNeutronsResidual; //(true number of neutrons) - (number of candidates)
       TH1D* fNeutronEResidual; //((true visible neutron E) - (total E from TOF))/(true visible neutron E)
+      TH2D* fERecoVsTrue; //Total reconstructed neutron energy versus total true neutron energy
       //TH1D* fLostNeutronE; //When multiple neutrons are grouped into one candidate, what are the energies of the neutrons that 
                            //are not the most energetic?
   };

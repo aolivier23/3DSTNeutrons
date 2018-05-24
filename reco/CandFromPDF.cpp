@@ -53,8 +53,12 @@ namespace plgn
     opts.AddKey("--cluster-alg", "Name of the branch from which to read pers::MCClusters.  Usually also the name of the cluster-making algorithm.", 
                 "MergedClusters");
     opts.AddKey("--time-res", "Toy timing resolution of a 3DST in ns.  Used for binning and smearing hit times in the NeutronTOF algorithm.", "0.7");
+   
+    std::string defaultPath = "";
+    const auto value = getenv("EDEPNEUTRONS_CONF_PATH");
+    if(value != nullptr) defaultPath = value;
     opts.AddKey("--PDF-file", "Name of a .root file with a TH2D named BetaVsEDep.  Histogram will be used as a Probability Density Function to "
-                              "distnguish clusters from different FS neutrons.", INSTALL_CONFIG_DIR "BetaVsEDep.root");
+                              "distnguish clusters from different FS neutrons.", defaultPath+"BetaVsEDep.root");
   }
 }
 
@@ -75,7 +79,7 @@ namespace reco
     if(!hist) std::cerr << "Failed to find histogram named BetaVsEDep in file " << (*(config.Options))["--PDF-file"] << "\n";
     fBetaVsEDep.reset((TH2D*)(hist->Clone()));
     if(fBetaVsEDep->Integral() > 1.0) fBetaVsEDep->Scale(1./fBetaVsEDep->Integral()); //Normalize PDF if it's not already normalized
-    fPenaltyTerm = 1.5/fBetaVsEDep->GetEntries(); //2.e-20/fBetaVsEDep->GetNbinsX()/fBetaVsEDep->GetNbinsY(); //1./fBetaVsEDep->GetEntries();  
+    fPenaltyTerm = 8.5/fBetaVsEDep->GetEntries(); //2.e-20/fBetaVsEDep->GetNbinsX()/fBetaVsEDep->GetNbinsY(); //1./fBetaVsEDep->GetEntries();  
   }
 
   bool CandFromPDF::DoReconstruct()

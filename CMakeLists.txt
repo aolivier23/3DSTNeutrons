@@ -22,10 +22,11 @@ set( CMAKE_CXX_FLAGS_RELEASE "-O2" )
 #SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 #Directory where configuration files like PDFs can be stored.
-add_definitions(-DINSTALL_CONFIG_DIR="${CMAKE_INSTALL_PREFIX}/conf/")
+#add_definitions(-DINSTALL_CONFIG_DIR="${CMAKE_INSTALL_PREFIX}/conf/")
 
 #Write a setup script to set LD_LIBRARY_PATH based on the location of this script.
 file(WRITE "setup.sh" "export LD_LIBRARY_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../lib:\${LD_LIBRARY_PATH}\n\"")
+file(APPEND "setup.sh" "export EDEPNEUTRONS_CONF_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../conf/\"")
 #TODO: Handle absolute paths to bash script correctly by not adding pwd.
 #file(WRITE  "setup.sh" "BIN_DIR=`dirname \$BASH_SOURCE`\n")
 #file(APPEND "setup.sh" "if [[\$BIN_DIR != /*]]\n")

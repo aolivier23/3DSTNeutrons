@@ -66,6 +66,9 @@ namespace ana
                                                                     "#frac{E_{neutron, true} - E_{neutron, reco}}{E_{neutron, true}};Events", 
                                                 150, -3, 3);
 
+    fERecoVsTrue = config.File->make<TH2D>("ERecoVsTrue", "Reconstructed Versus True Total Neutron Energy;E_{true} [MeV];E_{reco} [MeV];Events", 
+                                           200, 0, 3000, 200, 0, 3000);
+
     //fLostNeutronE = config.File->make<TH1D>("LostNeutronE", "Energy of Neutrons that were Grouped into a Candidate;Neutrons;KE [MeV]", 
     //                                        200, 0, 3000);
   }
@@ -143,12 +146,13 @@ namespace ana
 
     const double trueVisNeutronE = std::accumulate(FSToCands.begin(), FSToCands.end(), 0., [&trajs](auto sum, const auto& pair)
                                                    {
-                                                     return sum + trajs[pair.first].InitialMomentum.E();
+                                                     return sum + trajs[pair.first].InitialMomentum.E() - 939.6;
                                                    });
-    const double totalCandE = std::accumulate(fCands.begin(), fCands.end(), 0., [](auto sum, const auto& cand) { return sum + cand.TOFEnergy; });
+    const double totalCandE = std::accumulate(fCands.begin(), fCands.end(), 0., [](auto sum, const auto& cand) { return sum + cand.TOFEnergy - 939.6; });
 
     fNNeutronsResidual->Fill((int)(FSToCands.size()) - (int)(fCands.GetSize()));
     fNeutronEResidual->Fill((trueVisNeutronE - totalCandE)/trueVisNeutronE);
+    fERecoVsTrue->Fill(trueVisNeutronE, totalCandE);
 
     //Now, look for all of the candidates for each FS neutron.  
     for(const auto& FS: FSToCands) 
