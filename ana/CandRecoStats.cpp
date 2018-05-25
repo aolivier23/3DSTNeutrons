@@ -144,15 +144,23 @@ namespace ana
 
     for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag());
 
-    const double trueVisNeutronE = std::accumulate(FSToCands.begin(), FSToCands.end(), 0., [&trajs](auto sum, const auto& pair)
+    const double trueVisNeutronKE = std::accumulate(FSToCands.begin(), FSToCands.end(), 0., [&trajs](auto sum, const auto& pair)
                                                    {
                                                      return sum + trajs[pair.first].InitialMomentum.E() - 939.6;
                                                    });
-    const double totalCandE = std::accumulate(fCands.begin(), fCands.end(), 0., [](auto sum, const auto& cand) { return sum + cand.TOFEnergy - 939.6; });
+
+     const double trueVisNeutronE = std::accumulate(FSToCands.begin(), FSToCands.end(), 0., [&trajs](auto sum, const auto& pair)
+                                                   {
+                                                     return sum + trajs[pair.first].InitialMomentum.E();
+                                                   });
+
+    const double totalCandKE = std::accumulate(fCands.begin(), fCands.end(), 0., [](auto sum, const auto& cand) { return sum + cand.TOFEnergy - 939.6; });
+
+    const double totalCandE = std::accumulate(fCands.begin(), fCands.end(), 0., [](auto sum, const auto& cand) { return sum + cand.TOFEnergy; });
 
     fNNeutronsResidual->Fill((int)(FSToCands.size()) - (int)(fCands.GetSize()));
     fNeutronEResidual->Fill((trueVisNeutronE - totalCandE)/trueVisNeutronE);
-    fERecoVsTrue->Fill(trueVisNeutronE, totalCandE);
+    fERecoVsTrue->Fill(trueVisNeutronKE, totalCandKE);
 
     //Now, look for all of the candidates for each FS neutron.  
     for(const auto& FS: FSToCands) 
