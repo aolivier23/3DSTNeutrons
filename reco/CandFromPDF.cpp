@@ -190,7 +190,7 @@ namespace reco
       for(const auto& iter: bestCand)
       {
         neutron.DepositedEnergy += (*iter).Energy;
-        neutron.ClusterAlgToIndices["CandFromPDF"].push_back(iter.fIndex);
+        neutron.ClusterAlgToIndices["CandFromPDF"].push_back(std::distance(fClusters.begin(), iter));
       }
       neutrons.push_back(neutron);
 

@@ -92,7 +92,7 @@ namespace reco
         pers::NeutronCand seed;
         seed.DepositedEnergy = outer.Energy;
         seed.Start = outer.FirstPosition;
-        seed.ClusterAlgToIndices[fClusterAlgName].push_back(outerClustPos.fIndex); 
+        seed.ClusterAlgToIndices[fClusterAlgName].push_back(std::distance(fClusters.begin(), outerClustPos)); 
 
         const auto diff = seed.Start-vertPos;
         const auto dist = diff.Vect().Mag();
