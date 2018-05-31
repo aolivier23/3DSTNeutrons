@@ -1,8 +1,3 @@
-#Set up edep-sim
-set(EDEP_DIR $ENV{EDEP_ROOT}/$ENV{EDEP_TARGET})
-include_directories( "${EDEP_DIR}/include/edep-sim" )
-link_directories( "${EDEP_DIR}/lib" )
-
 add_subdirectory(alg)
 
 add_library( reco SHARED Reconstructor.cpp NeutronHits.cpp NoGridNeutronHits.cpp GridNeutronHits.cpp 

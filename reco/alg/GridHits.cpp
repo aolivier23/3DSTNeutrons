@@ -22,8 +22,16 @@ namespace reco
   double GridHits::LengthInsideBox(const TG4HitSegment& seg, const TVector3& boxCenter, TGeoMatrix* mat) const
   {
     //TODO: Define start and stop only once for each segment?
-    const auto start = geo::InLocal(seg.Start.Vect(), mat);
-    const auto stop = geo::InLocal(seg.Stop.Vect(), mat);
+    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+    const auto segStart = seg.GetStart();
+    const auto segStop = seg.GetStop();
+    #else
+    const auto segStart = seg.Start;
+    const auto segStop = seg.Stop;
+    #endif 
+
+    const auto start = geo::InLocal(segStart.Vect(), mat);
+    const auto stop = geo::InLocal(segStop.Vect(), mat);
     double dist = -1.;
                                                                                                                                        
     //Find out how much of seg's total length is inside this box
@@ -33,7 +41,7 @@ namespace reco
     {
       if(geo::Contains(fHitBox, stop, boxCenter)) //If this segment both starts and stops in fHitBox
       {
-        dist = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
+        dist = (segStop.Vect()-segStart.Vect()).Mag();
       }
       else //Otherwise, this segment leaves fHitBox.  Rely on ROOT to find how far it travels inside.
       {
@@ -51,7 +59,7 @@ namespace reco
       dist += geo::DistFromOutside(fHitBox, stop, start, boxCenter); //distance from stopping point to entering box (in reverse direction)
                                                                                                                                        
       //Computed everything "in place" (almost certainly doesn't matter anyway).  Now, set dist for real. 
-      dist = (seg.Stop.Vect()-seg.Start.Vect()).Mag()-dist;
+      dist = (segStop.Vect()-segStart.Vect()).Mag()-dist;
     } //If seg is inside this box (it doesn't have to be)
 
     return dist;

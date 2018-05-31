@@ -15,9 +15,17 @@ namespace truth
   {
     for(const auto& traj: trajs)
     {
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      if(traj.GetParentId() == parent)
+      #else
       if(traj.ParentId == parent)
+      #endif
       {
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const int id = traj.GetTrackId();
+        #else
         const int id = traj.TrackId;
+        #endif
         ids.insert(id);
         Descendants(id, trajs, ids);
       }
@@ -27,7 +35,12 @@ namespace truth
   //Returns the FS TG4Trajectory that led to child.
   const TG4Trajectory& Matriarch(const TG4Trajectory& child, const std::vector<TG4Trajectory>& trajs)
   {
-    if(child.ParentId == -1) return child;
-    return Matriarch(trajs[child.ParentId], trajs);
+    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+    const int parent = child.GetParentId();
+    #else
+    const int parent = child.ParentId;
+    #endif 
+    if(parent == -1) return child;
+    return Matriarch(trajs[parent], trajs);
   }
 }

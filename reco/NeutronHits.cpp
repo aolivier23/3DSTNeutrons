@@ -58,11 +58,22 @@ namespace reco
     const auto trajs = fEvent->Trajectories;
     for(const auto& traj: trajs)
     {
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      const auto mom = traj.GetInitialMomentum();
+      const auto name = traj.GetName();
+      #else
+      const auto name = traj.Name;
       const auto mom = traj.InitialMomentum;
-      if(traj.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
+      #endif
+      if(name == "neutron" && mom.E()-mom.Mag() > fEMin) 
       {
-        neutDescendIDs.insert(traj.TrackId);
-        truth::Descendants(traj.TrackId, trajs, neutDescendIDs);
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const int id = traj.GetTrackId();
+        #else
+        const int id = traj.TrackId;
+        #endif
+        neutDescendIDs.insert(id);
+        truth::Descendants(id, trajs, neutDescendIDs);
       }
     }
 
@@ -82,12 +93,20 @@ namespace reco
       std::list<TG4HitSegment> neutSegs, others;
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
-        const auto local = geo::InLocal(seg.Start.Vect(), mat);
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto segStart = seg.GetStart();
+        const int segPrim = seg.GetPrimaryId();
+        #else
+        const auto segStart = seg.Start;
+        const int segPrim = seg.PrimaryId;
+        #endif
+
+        const auto local = geo::InLocal(segStart.Vect(), mat);
         double arr[] = {local.X(), local.Y(), local.Z()};
         if(shape->Contains(arr)) //Intentionally not extrapolating to the boundary.  Very reasonable to leave 
                                  //some room before the boundary in a real detector anyway.  
         {
-          if(neutDescendIDs.count(seg.PrimaryId)) neutSegs.push_back(seg);
+          if(neutDescendIDs.count(segPrim)) neutSegs.push_back(seg);
           else others.push_back(seg);
         }
       }
@@ -98,8 +117,16 @@ namespace reco
         TG4HitSegment seed = *(neutSegs.begin());        
         neutSegs.erase(neutSegs.begin()); //remove the seed from the list of neutSegs so that it is not double-counted later.
 
-        const auto start = geo::InLocal(seed.Start.Vect(), mat);
-        const auto stop = geo::InLocal(seed.Stop.Vect(), mat);
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto seedStart = seed.GetStart();
+        const auto seedStop = seed.GetStop();
+        #else
+        const auto seedStart = seed.Start;
+        const auto seedStop = seed.Stop;
+        #endif
+
+        const auto start = geo::InLocal(seedStart.Vect(), mat);
+        const auto stop = geo::InLocal(seedStop.Vect(), mat);
 
         //Loop over fWidth-sized cubes that contain some energy from seed.
         //TODO: Count energy from non-neutron-descended particles.  
@@ -128,30 +155,42 @@ namespace reco
               size_t nContrib; //The number of segements that contributed to this hit
               neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat, &nContrib](auto& seg)
                                  {
+                                   #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                   auto& segStart = seg.GetStart();
+                                   auto& segStop = seg.GetStop();
+                                   const int segPrim = seg.GetPrimaryId();
+                                   auto& segEDep = seg.GetEnergyDeposit();
+                                   #else
+                                   auto& segStart = seg.Start;
+                                   auto& segStop = seg.GetStop();
+                                   const int segPrim = seg.GetPrimaryId();
+                                   auto& segEDep = seg.EnergyDeposit;
+                                   #endif
+
                                    //Find out whether seg is in this box at all.  
-                                   if(geo::DistFromOutside(hitBox, geo::InLocal(seg.Start.Vect(), mat), geo::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+                                   if(geo::DistFromOutside(hitBox, geo::InLocal(segStart.Vect(), mat), geo::InLocal(segStop.Vect(), mat), boxCenter) > 0.0) return false;
 
                                    //Find out how much of seg's total length is inside this box
-                                   const double dist = geo::DistFromInside(hitBox, geo::InLocal(seg.Start.Vect(), mat), 
-                                                                        geo::InLocal(seg.Stop.Vect(), mat), boxCenter);
+                                   const double dist = geo::DistFromInside(hitBox, geo::InLocal(segStart.Vect(), mat), 
+                                                                        geo::InLocal(segStop.Vect(), mat), boxCenter);
             
                                    ++nContrib;
-                                   hit.Position += TLorentzVector(0., 0., 0., seg.Start.T()); //Add time to hit.Position.
-                                   const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
-                                   hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
+                                   hit.Position += TLorentzVector(0., 0., 0., segStart.T()); //Add time to hit.Position.
+                                   const double length = (segStop.Vect()-segStart.Vect()).Mag();
+                                   hit.TrackIDs.push_back(segPrim); //This segment contributed something to this hit
                                    if(dist > length) //If this segment is entirely inside the same box as seed
                                    {
-                                     hit.Energy += seg.EnergyDeposit;
+                                     hit.Energy += segEDep;
                                      return true;
                                    }
 
                                    //Set this segment's starting position to where it leaves this box.  
                                    //Prevents double-counting of some of seg's energy.
-                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();
-                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
+                                   auto offset = dist*(segStop-segStart).Vect().Unit();
+                                   segStart = segStart+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
 
-                                   hit.Energy += seg.EnergyDeposit*dist/length;
-                                   seg.EnergyDeposit = seg.EnergyDeposit*dist/length;
+                                   hit.Energy += segEDep*dist/length;
+                                   segEDep = segEDep*dist/length;
  
                                    return false;
                                  }); //Looking for segments in the same box
@@ -161,30 +200,40 @@ namespace reco
 
               if(hit.Energy > fEMin) 
               {
+                #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                const auto segStart = seed.GetStart();
+                const auto segStop = seed.GetStop();
+                auto& segEDep = seg.GetEnergyDeposit();
+                #else
+                const auto segStart = seed.Start;
+                const auto segStop = seed.Stop;
+                auto& segEDep = seg.EnergyDeposit;
+                #endif
+
                 //Now, look for energy from segments of non-neutron-descended particles
                 double otherE = 0.;
                 others.remove_if([&otherE, &hitBox, &boxCenter, mat](auto& seg)
                                  {
-                                   if(geo::DistFromOutside(hitBox, geo::InLocal(seg.Start.Vect(), mat), geo::InLocal(seg.Stop.Vect(), mat), boxCenter) > 0.0) return false;
+                                   if(geo::DistFromOutside(hitBox, geo::InLocal(segStart.Vect(), mat), geo::InLocal(segStop.Vect(), mat), boxCenter) > 0.0) return false;
 
                                    //Find out how much of seg's total length is inside this box
-                                   const double dist = geo::DistFromInside(hitBox, geo::InLocal(seg.Start.Vect(), mat), 
-                                                                           geo::InLocal(seg.Stop.Vect(), mat), boxCenter);
+                                   const double dist = geo::DistFromInside(hitBox, geo::InLocal(segStart.Vect(), mat), 
+                                                                           geo::InLocal(segStop.Vect(), mat), boxCenter);
 
-                                   const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
+                                   const double length = (segStop.Vect()-segStart.Vect()).Mag();
                                    if(dist > length) //If this segment is entirely inside the same box as seed
                                    {
-                                     otherE += seg.EnergyDeposit;
+                                     otherE += segEDep;
                                      return true;
                                    }
  
                                    //Set this segment's starting position to where it leaves this box.
                                    //Prevents double-counting of some of seg's energy.
-                                   auto offset = dist*(seg.Stop-seg.Start).Vect().Unit();
-                                   seg.Start = seg.Start+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
+                                   auto offset = dist*(segStop-segStart).Vect().Unit();
+                                   segStart = segStart+TLorentzVector(offset.X(), offset.Y(), offset.Z(), 0.);
 
-                                   otherE += seg.EnergyDeposit*dist/length;
-                                   seg.EnergyDeposit = seg.EnergyDeposit*dist/length;
+                                   otherE += segEDep*dist/length;
+                                   segEDep = segEDep*dist/length;
 
                                    return false;
                                  }); //Looking for segments in the same box
