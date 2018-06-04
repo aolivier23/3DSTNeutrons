@@ -162,8 +162,8 @@ namespace reco
                                    auto& segEDep = seg.GetEnergyDeposit();
                                    #else
                                    auto& segStart = seg.Start;
-                                   auto& segStop = seg.GetStop();
-                                   const int segPrim = seg.GetPrimaryId();
+                                   auto& segStop = seg.Stop;
+                                   const int segPrim = seg.PrimaryId;
                                    auto& segEDep = seg.EnergyDeposit;
                                    #endif
 
@@ -200,20 +200,20 @@ namespace reco
 
               if(hit.Energy > fEMin) 
               {
-                #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
-                const auto segStart = seed.GetStart();
-                const auto segStop = seed.GetStop();
-                auto& segEDep = seg.GetEnergyDeposit();
-                #else
-                const auto segStart = seed.Start;
-                const auto segStop = seed.Stop;
-                auto& segEDep = seg.EnergyDeposit;
-                #endif
-
                 //Now, look for energy from segments of non-neutron-descended particles
                 double otherE = 0.;
                 others.remove_if([&otherE, &hitBox, &boxCenter, mat](auto& seg)
                                  {
+                                   #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                   auto& segStart = seg.GetStart();
+                                   auto& segStop = seg.GetStop();
+                                   auto& segEDep = seg.GetEnergyDeposit();
+                                   #else
+                                   auto& segStart = seg.Start;
+                                   auto& segStop = seg.Stop;
+                                   auto& segEDep = seg.EnergyDeposit;
+                                   #endif
+
                                    if(geo::DistFromOutside(hitBox, geo::InLocal(segStart.Vect(), mat), geo::InLocal(segStop.Vect(), mat), boxCenter) > 0.0) return false;
 
                                    //Find out how much of seg's total length is inside this box
