@@ -24,7 +24,7 @@ namespace opt
     throw exception("Expected a value");
   }
 
-  std::string Accumulate::FoundAgain(const std::string& prev) const
+  std::string Accumulate::FoundAgain(const std::string& ) const
   {
     throw exception("Expected a value");
   }

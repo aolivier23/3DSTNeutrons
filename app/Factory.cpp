@@ -31,7 +31,7 @@ namespace plgn
   //
   //Providing default implementation here that does nothing.  
   template <class T>
-  void RegCmdLine(opt::CmdLine& opts) {}
+  void RegCmdLine(opt::CmdLine& ) {}
 
   template <class BASE>
   class RegistrarBase

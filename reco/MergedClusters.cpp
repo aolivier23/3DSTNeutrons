@@ -89,7 +89,11 @@ namespace reco
     }
 
     //Get vertex position for deciding which MCHit is the closest to vertex.
-    const auto& vertPos = fEvent->Primaries.front().Position; //TODO: What should I do if there are multiple vertices?
+    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+    const auto& vertPos = fEvent->Primaries.front().GetPosition(); //TODO: What should I do if there are multiple vertices?
+    #else
+	const auto& vertPos = fEvent->Primaries.front().Position;
+    #endif
 
     //Calculate cluster sizes
     for(auto& pair: clusterToHits)
@@ -134,6 +138,6 @@ namespace reco
 
     return !(fClusters.empty());
   }
-  REGISTER_PLUGIN(MergedClusters, plgn::Reconstructor);
+  REGISTER_PLUGIN(MergedClusters, plgn::Reconstructor)
 }
 

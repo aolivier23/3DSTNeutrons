@@ -25,7 +25,7 @@ namespace plgn
 {
   //Register command line options
   template <>
-  void RegCmdLine<reco::CCQEChargedFSFilter>(opt::CmdLine& opts)
+  void RegCmdLine<reco::CCQEChargedFSFilter>(opt::CmdLine& )
   {
   }
 }
@@ -45,12 +45,18 @@ namespace reco
     {
       for(const auto& part: vert.Particles)
       {
-        if(part.Name != "mu-" && part.Name != "mu+" && part.Name != "proton" && part.Name != "neutron") 
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto name = part.GetName();
+        #else
+        const auto name = part.Name;
+        #endif
+		
+        if(strcmp(name, "mu-") != 0 && strcmp(name, "mu+") != 0 && strcmp(name, "proton") != 0 && strcmp(name, "neutron") != 0) 
         {
           //std::cout << "Found a " << part.Name << ", so returning false from CCQEChargedFSFilter.\n";
           return false;
         }
-        mult.insert(part.Name);
+        mult.insert(name);
       }
     }
 
@@ -66,6 +72,6 @@ namespace reco
     }
     return true;
   }
-  REGISTER_PLUGIN(CCQEChargedFSFilter, plgn::Reconstructor);
+  REGISTER_PLUGIN(CCQEChargedFSFilter, plgn::Reconstructor)
 }
 

@@ -23,7 +23,7 @@ namespace opt
     return "true";
   }
 
-  std::string Exists::FoundAgain(const std::string& value) const
+  std::string Exists::FoundAgain(const std::string& ) const
   {
     throw exception("Option was found twice that should only be specified once");
   }

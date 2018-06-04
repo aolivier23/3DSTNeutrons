@@ -81,7 +81,13 @@ namespace reco
       for(const auto& seg: det.second)
       {
         //Fiducial cut
-        const auto start = geo::InLocal(seg.Start.Vect(), mat);
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto segStart = seg.GetStart();
+        #else
+        const auto segStart = seg.Start;
+        #endif
+
+        const auto start = geo::InLocal(segStart.Vect(), mat);
         double arr[] = {start.X(), start.Y(), start.Z()};
         if(shape->Contains(arr)) //TODO: Put this back
         {
@@ -100,5 +106,5 @@ namespace reco
     return !(fHits.empty());
   }
 
-  REGISTER_PLUGIN(GridAllHits, plgn::Reconstructor);
+  REGISTER_PLUGIN(GridAllHits, plgn::Reconstructor)
 }

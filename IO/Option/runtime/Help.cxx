@@ -13,12 +13,12 @@ namespace opt
   {
   }
 
-  std::string Help::FoundFirst(const std::string& cmdLine) const 
+  std::string Help::FoundFirst(const std::string& ) const 
   {
     throw exception("Help requested"); //Trigger printing of help text by CmdLine class
   }
 
-  std::string Help::FoundAgain(const std::string& cmdLine, const std::string& prev) const
+  std::string Help::FoundAgain(const std::string& , const std::string& ) const
   {
     throw exception("Help requested"); //Trigger printing of help text by CmdLine class
   }
@@ -28,7 +28,7 @@ namespace opt
     throw exception("Help requested"); //Trigger printing of help text by CmdLine class
   }
 
-  std::string Help::FoundAgain(const std::string& prev) const
+  std::string Help::FoundAgain(const std::string& ) const
   {
     throw exception("Help requested"); //Trigger printing of help text by CmdLine class
   }

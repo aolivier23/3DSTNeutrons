@@ -76,12 +76,20 @@ namespace
   
       virtual std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
-        bool start = (hit.Start.Y() < Center.Y());
-        bool stop = (hit.Stop.Y() < Center.Y());
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        auto hitStart = hit.GetStart();
+		auto hitStop = hit.GetStop();
+        #else
+        auto& hitStart = hit.Start;
+		auto& hitStop = hit.Stop;
+        #endif
+
+        bool start = (hitStart.Y() < Center.Y());
+        bool stop = (hitStop.Y() < Center.Y());
   
         if(start == stop) return start?(*Minus)[hit]:(*Plus)[hit]; //A straight line that starts and ends in the same octant cannot visit any other octants
 
-        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        double startDiff = std::fabs(hitStart.Y() - Center.Y()), stopDiff = std::fabs(hitStop.Y() - Center.Y());
         if(startDiff > stopDiff)
         {
           return start?(*Minus)[hit]:(*Plus)[hit];
@@ -114,12 +122,20 @@ namespace
   
       std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
-        bool start = (hit.Start.X() < Center.X());
-        bool stop = (hit.Stop.X() < Center.X());
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        auto hitStart = hit.GetStart();
+		auto hitStop = hit.GetStop();
+        #else
+        auto& hitStart = hit.Start;
+		auto& hitStop = hit.Stop;
+        #endif
+
+        bool start = (hitStart.X() < Center.X());
+        bool stop = (hitStop.X() < Center.X());
   
         if(start == stop) return start?Minus[hit]:Plus[hit]; //A straight line that starts and ends in the same octant cannot visit any other octants
 
-        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        double startDiff = std::fabs(hitStart.Y() - Center.Y()), stopDiff = std::fabs(hitStop.Y() - Center.Y());
         if(startDiff > stopDiff)
         {
           return start?Minus[hit]:Plus[hit];
@@ -151,12 +167,20 @@ namespace
 
       virtual std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
-        bool start = (hit.Start.Z() < Center.Z());
-        bool stop = (hit.Stop.Z() < Center.Z());
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        auto hitStart = hit.GetStart();
+		auto hitStop = hit.GetStop();
+        #else
+        auto& hitStart = hit.Start;
+		auto& hitStop = hit.Stop;
+        #endif
+
+        bool start = (hitStart.Z() < Center.Z());
+        bool stop = (hitStop.Z() < Center.Z());
 
         if(start == stop) return start?Minus:Plus; //A straight line that starts and ends in the same octant cannot visit any other octants
 
-        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        double startDiff = std::fabs(hitStart.Y() - Center.Y()), stopDiff = std::fabs(hitStop.Y() - Center.Y());
         if(startDiff > stopDiff)
         {
           return start?Minus:Plus;
@@ -190,12 +214,20 @@ namespace
   
       virtual std::list<TG4HitSegment>& operator [](const TG4HitSegment& hit)
       {
-        bool start = (hit.Start.Z() < Center.Z());
-        bool stop = (hit.Stop.Z() < Center.Z());
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        auto hitStart = hit.GetStart();
+		auto hitStop = hit.GetStop();
+        #else
+        auto& hitStart = hit.Start;
+		auto& hitStop = hit.Stop;
+        #endif
+
+        bool start = (hitStart.Z() < Center.Z());
+        bool stop = (hitStop.Z() < Center.Z());
   
         if(start == stop) return start?Minus[hit]:Plus[hit]; //A straight line that starts and ends in the same octant cannot visit any other octants
 
-        double startDiff = std::fabs(hit.Start.Y() - Center.Y()), stopDiff = std::fabs(hit.Stop.Y() - Center.Y());
+        double startDiff = std::fabs(hitStart.Y() - Center.Y()), stopDiff = std::fabs(hitStop.Y() - Center.Y());
         if(startDiff > stopDiff)
         {
           return start?Minus[hit]:Plus[hit];
@@ -272,17 +304,32 @@ namespace reco
     {
       for(const auto& prim: vtx.Particles)
       {
-        const auto mom = trajs[prim.TrackId].InitialMomentum;
-        if(prim.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const int primId = prim.GetTrackId();
+		const auto mom = trajs[primId].GetInitialMomentum();
+		const auto name = prim.GetName();
+        #else
+        const int primId = prim.TrackId;
+		const auto mom = trajs[primId].InitialMomentum;
+		const auto name = prim.Name;
+        #endif
+
+        if(strcmp(name, "neutron") == 0 && mom.E()-mom.Mag() > fEMin) 
         {
-          truth::Descendants(prim.TrackId, trajs, neutDescendIDs);
-          neutDescendIDs.insert(prim.TrackId);
+          truth::Descendants(primId, trajs, neutDescendIDs);
+          neutDescendIDs.insert(primId);
         }
         //else std::cout << "Primary named " << prim.Name << " with KE " << mom.E()-mom.Mag() << " is not a FS neutron.\n";
       }
     }
+    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+    auto vertexPos = vertices[0].GetPosition();
+    #else
+	auto vertexPos = vertices[0].Position;
+    #endif	
+
     TVector3 center(0., 0., 0.);
-    if(vertices.size() > 0) center = vertices[0].Position.Vect();
+    if(vertices.size() > 0) center = vertexPos.Vect();
 
     //Get geometry information for forming MCHits
     TGeoBBox hitBox(fWidth/2., fWidth/2., fWidth/2.);
@@ -310,13 +357,23 @@ namespace reco
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
         //Simple fiducial cut.  Should really look at how much of deposit is inside the fiducial volume or something.  
-        //Ideally, I'll just get edepsim to do this for me in the future by creating a volume for each scintillator block.  
-        const auto local = geo::InLocal((seg.Start.Vect()+seg.Stop.Vect())*0.5, mat);
+        //Ideally, I'll just get edepsim to do this for me in the future by creating a volume for each scintillator block.
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto segStart = seg.GetStart();
+		const auto segStop = seg.GetStop();
+        const int segPrim = seg.GetPrimaryId();
+        #else
+        const auto segStart = seg.Start;
+		const auto segStop = seg.Stop;
+        const int segPrim = seg.PrimaryId;
+        #endif
+  
+        const auto local = geo::InLocal((segStart.Vect()+segStop.Vect())*0.5, mat);
         double arr[] = {local.X(), local.Y(), local.Z()};
         if(shape->Contains(arr))
         {
           //const auto primary = truth::Matriarch(seg, trajs);
-          if(neutDescendIDs.count(seg.PrimaryId))
+          if(neutDescendIDs.count(segPrim))
           {
             neutGeom[seg].push_back(seg);
           }
@@ -336,11 +393,21 @@ namespace reco
         auto& neutSegs = neutGeom[seed];
         auto& others = otherGeom[seed]; 
 
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        auto seedId = seed.GetPrimaryId();
+		auto seedEnergy = seed.GetEnergyDeposit();
+		const auto seedStart = seed.GetStart();
+        #else
+        auto seedId = seed.PrimaryId;
+		auto seedEnergy = seed.EnergyDeposit;
+		const auto seedStart = seed.Start;
+        #endif
+
         pers::MCHit hit;
-        hit.Energy = seed.EnergyDeposit;
-        hit.TrackIDs.push_back(seed.PrimaryId);
+        hit.Energy = seedEnergy;
+        hit.TrackIDs.push_back(seedId);
         hit.Width = fWidth;
-        hit.Position = seed.Start;
+        hit.Position = seedStart;
 
         TVector3 boxCenter = hit.Position.Vect();
 
@@ -350,16 +417,27 @@ namespace reco
         //Look for TG4HitSegments from neutrons that are inside hitBox
         neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat](auto& seg)
                            {
+							 #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+							 const auto segStart = seg.GetStart();
+							 const auto segStop = seg.GetStop();
+							 const int segPrim = seg.GetPrimaryId();
+							 auto segEnergy = seg.GetEnergyDeposit();
+							 #else
+							 const auto segStart = seg.Start;
+							 const auto segStop = seg.Stop;
+							 const int segPrim = seg.PrimaryId;
+							 auto segEnergy = seg.EnergyDeposit;
+							 #endif
                              //Find out how much of seg's total length is inside this box
-                             const double dist = geo::DistFromOutside(hitBox, seg.Start.Vect(),
-                                                                   seg.Stop.Vect(), boxCenter);
+                             const double dist = geo::DistFromOutside(hitBox, segStart.Vect(),
+                                                                   segStop.Vect(), boxCenter);
                                                                                                                                           
                              if(dist > 0.0) return false; //If this segment is completely outside 
                                                           //the box that contains seed, keep it for later.
                               
                              //Otherwise, add this segments's energy to the MCHit
-                             hit.TrackIDs.push_back(seg.PrimaryId); //This segment contributed something to this hit
-                             hit.Energy += seg.EnergyDeposit;
+                             hit.TrackIDs.push_back(segPrim); //This segment contributed something to this hit
+                             hit.Energy += segEnergy;
                              //std::cout << "Accumulated another neutron seg's energy of " << seg.EnergyDeposit << "\n";
                              //TODO: Energy-weighted position average
   
@@ -372,14 +450,23 @@ namespace reco
           //At least do this calculation when I know what I'm looking for.  
           double otherE = 0.;
           for(auto otherPtr = others.begin(); otherPtr != others.end() /*&& !(hit.Energy+10. > otherE*3.)*/; ++otherPtr) //Add an extra 10 MeV to be sure this is not 
-                                                                                                                         //a floating point precision problem
+                                                                                                               //a floating point precision problem
           {
             const auto& seg = *otherPtr;
             //TODO: Should these be InLocal()?
             //TODO: Use result of DistFromInside to figure out how much energy is contributed.
-            if(geo::DistFromInside(hitBox, seg.Start.Vect(), seg.Stop.Vect(), boxCenter) > 0.0)
+			#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+		    const auto segStart = seg.GetStart();
+			const auto segStop = seg.GetStop();
+		    const int segEnergy = seg.GetEnergyDeposit();
+		    #else
+		    const auto segStart = seg.Start;
+			const auto segStop = seg.Stop;
+		    const int segEnergy = seg.EnergyDeposit;
+		    #endif
+            if(geo::DistFromInside(hitBox, segStart.Vect(), segStop.Vect(), boxCenter) > 0.0)
             {
-              otherE += seg.EnergyDeposit;
+              otherE += segEnergy;
             }
 
             //Simpler algorithm to check for segments that either start or end in this hit.
@@ -397,5 +484,5 @@ namespace reco
   
     return !(fHits.empty());
   }
-  REGISTER_PLUGIN(NoGridNeutronHits, plgn::Reconstructor);
+  REGISTER_PLUGIN(NoGridNeutronHits, plgn::Reconstructor)
 }

@@ -53,6 +53,6 @@ namespace reco
 
     return !(fClusters.empty());
   }
-  REGISTER_PLUGIN(AdjacentClusters, plgn::Reconstructor);
+  REGISTER_PLUGIN(AdjacentClusters, plgn::Reconstructor)
 }
 
