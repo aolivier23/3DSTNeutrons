@@ -2,11 +2,6 @@
 //Brief: Combines all MCHits that are adjacent to other MCHits into one big cluster.  Then, combines leftover MCHits into clusters that are 5 or fewer hit widths away.
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 
-//util includes
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
-
 //EDepNeutrons includes
 #include "app/Factory.cpp"
 #include "reco/CCQEChargedFSFilter.h"
@@ -20,15 +15,6 @@
 #include "TGeoManager.h"
 
 //c++ includes
-
-namespace plgn
-{
-  //Register command line options
-  template <>
-  void RegCmdLine<reco::CCQEChargedFSFilter>(opt::CmdLine& opts)
-  {
-  }
-}
 
 namespace reco
 {

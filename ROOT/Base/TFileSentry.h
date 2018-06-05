@@ -31,22 +31,29 @@ namespace util
       TOBJECT* make(ARGS... args)
       {
         auto oldFile = gFile;
-        fFile->cd();
+        auto oldDir = gDirectory;
+        fPwd->cd();
         if(fFile->IsOpen())
         {
           auto obj = new TOBJECT(args...);
           gFile = oldFile;
+          gDirectory = oldDir;
           return obj;
         }
         else throw util::exception("FileClosed") << "File " << fFile->GetName() << " was closed before TFileSentry was done "
                                                  << "writing to it in make.\n";
         gFile = oldFile;
+        gDirectory = oldDir;
         return nullptr;
       }
+
+      //Change the directory for newly written TObjects the the TDirectory called "name", creating it if necessary.
+      TDirectory* cd(const std::string& name); 
                                                                                              
       virtual ~TFileSentry();
   
       std::shared_ptr<TFile> fFile; //The file to which objects will be written.  
+      TDirectory* fPwd; //Observer pointer to current working directory.  
   };
 }
 

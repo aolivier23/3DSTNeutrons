@@ -9,14 +9,11 @@
 
 //util includes
 #include "ROOT/Base/TFileSentry.h"
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
 
 //c++ includes
 #include <numeric>
 
-namespace plgn
+/*namespace plgn
 {
   //Register command line options
   template <>
@@ -25,12 +22,14 @@ namespace plgn
     opts.AddKey("--cluster-alg", "Name of the branch of pers::MClusters to analyze.  Usually the name of the cluster-making algorithm.", "MergedClusters");
     opts.AddKey("--E-min", "Minimum energy for a FS neutron to be plotted.  Should match hit-making and cluster-making algorithms.", "1.5");
   }
-}
+}*/
 
 namespace ana
 {
-  NeutronCand::NeutronCand(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fClusters(*(config.Reader), (*(config.Options))["--cluster-alg"].c_str()), 
-                                                                  fMinEnergy(config.Options->Get<double>("--E-min")), fClusterNumber(-314), 
+  NeutronCand::NeutronCand(const plgn::Analyzer::Config& config): plgn::Analyzer(config), 
+                                                                  fClusters(*(config.Reader), 
+                                                                            config.Options["ClusterAlg"].as<std::string>().c_str()), 
+                                                                  fMinEnergy(config.Options["EMin"].as<double>()), fClusterNumber(-314), 
                                                                   fClustersFromEnd(-314), fDeltaAngle(-314), fEDep(-314), fELeft(-314), 
                                                                   fEFromTOF(-314), fDistFromPrev(-314), fDeltaT(-314), fTrueE(-314)
   {

@@ -15,6 +15,19 @@ namespace util
   {
   }
 
+  TDirectory* TFileSentry::cd(const std::string& name)
+  {
+    auto oldDir = gDirectory;
+    if(!fFile->cd(name.c_str()))
+    {
+      fFile->mkdir(name.c_str())->cd();
+      fPwd = gDirectory; //TODO: There is probably a better way to extract a TDirectory from a TFile
+      gDirectory = oldDir;
+      return fPwd;
+    }
+    gDirectory = oldDir;
+  }
+
   TFileSentry::~TFileSentry()
   {
     //Make sure all objects in this TFile are written.

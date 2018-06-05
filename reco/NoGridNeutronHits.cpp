@@ -230,18 +230,6 @@ namespace
   }
 }
 
-
-namespace plgn
-{
-  //Register command line options
-  template <>
-  void RegCmdLine<reco::NoGridNeutronHits>(opt::CmdLine& opts)
-  {
-    opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
-    opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "100.");
-  }
-}
-
 namespace reco
 {
   NoGridNeutronHits::NoGridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits()
@@ -250,8 +238,8 @@ namespace reco
     //      reconfigure from opt::Options after Parse() was called? 
     config.Output->Branch("NoGridNeutronHits", &fHits);
 
-    fEMin = config.Options->Get<double>("--E-min");
-    fWidth = config.Options->Get<double>("--cube-size");
+    fEMin = config.Options["EMin"].as<double>();
+    fWidth = config.Options["CubeSize"].as<size_t>();
   }
 
   //Produce MCHits from TG4HitSegments descended from FS neutrons above threshold

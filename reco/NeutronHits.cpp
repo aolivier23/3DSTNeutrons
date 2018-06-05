@@ -39,9 +39,6 @@ namespace reco
 {
   NeutronHits::NeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), fWidth(100.), fEMin(2.)
   {
-    //TODO: Rewrite interface to allow configuration?  Maybe pass in opt::CmdLine in constructor, then 
-    //      reconfigure from opt::Options after Parse() was called? 
-
     config.Output->Branch("NeutronHits", &fHits);
   }
 

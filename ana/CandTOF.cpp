@@ -9,14 +9,11 @@
 
 //util includes
 #include "ROOT/Base/TFileSentry.h"
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
 
 //c++11 includes
 #include <chrono>
 
-namespace plgn
+/*namespace plgn
 {
   //Register command line options
   template <>
@@ -26,18 +23,20 @@ namespace plgn
     opts.AddKey("--clust-alg", "Name of the branch of pers::MClusters to analyze.  Usually the name of the cluster-making algorithm.", "MergedClusters");
     opts.AddKey("--time-res", "Toy timing resolution of a 3DST in ns.  Used for binning and smearing hit times in the CandTOF algorithm.", "0.7");
   }
-}
+}*/
 
 namespace ana
 {
-  CandTOF::CandTOF(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fCands(*(config.Reader), (*(config.Options))["--cand-alg"].c_str()), 
-                                                                fClusters(*(config.Reader), (*(config.Options))["--clust-alg"].c_str()),
+  CandTOF::CandTOF(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fCands(*(config.Reader), 
+                                                                                  config.Options["CandAlg"].as<std::string>().c_str()), 
+                                                                fClusters(*(config.Reader), 
+                                                                          config.Options["--clust-alg"].as<std::string>().c_str()),
                                                                 fGen(std::chrono::system_clock::now().time_since_epoch().count()), 
-                                                                fGaus(0., config.Options->Get<double>("--time-res")), fPosRes(10.), 
-                                                                fTimeRes(config.Options->Get<double>("--time-res"))
+                                                                fGaus(0., config.Options["TimeRes"].as<double>()), fPosRes(10.), 
+                                                                fTimeRes(config.Options["TimeRes"].as<double>())
   {
     const float timeMax = 100., distMax = 5000.;
-    const size_t nTimeBins = timeMax/config.Options->Get<double>("--time-res"), nDistBins = distMax/10.0; //1.0cm bins
+    const size_t nTimeBins = timeMax/config.Options["TimeRes"].as<double>(), nDistBins = distMax/10.0; //1.0cm bins
     fNeutronHitTime = config.File->make<TH1D>("NeutronHitTime", "Time of First Hit from a FS Neutron;Time [ns];Visible FS Neutrons", nTimeBins, 0, timeMax); 
 
     fNeutronTimeVersusDist = config.File->make<TH2D>("NeutronTimeVersusDist", "Time of First Hit from a FS Neutron Versus Distance;Distance [mm];Time [ns]",

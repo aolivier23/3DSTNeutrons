@@ -3,11 +3,6 @@
 //       Tries to stitch together MCClusters that could have come from the same FS neutron based on timing.
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 
-//util includes
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
-
 //EDepNeutrons includes
 #include "app/Factory.cpp"
 #include "reco/CandFromTOF.h"
@@ -34,7 +29,7 @@ namespace
   }
 }
 
-namespace plgn
+/*namespace plgn
 {
   //Register command line options
   template <>
@@ -44,14 +39,15 @@ namespace plgn
                 "MergedClusters");
     opts.AddKey("--time-res", "Toy timing resolution of a 3DST in ns.  Used for binning and smearing hit times in the NeutronTOF algorithm.", "0.7");
   }
-}
+}*/
 
 namespace reco
 {
   CandFromTOF::CandFromTOF(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fCands(), 
-                                                                       fClusters(*(config.Input), (*(config.Options))["--cluster-alg"].c_str()), 
-                                                                       fClusterAlgName((*(config.Options))["--cluster-alg"].c_str()), 
-                                                                       fTimeRes(config.Options->Get<double>("--time-res")), fPosRes(10.)
+                                                                       fClusters(*(config.Input), 
+                                                                                 config.Options["ClusterAlg"].as<std::string>().c_str()), 
+                                                                       fClusterAlgName(config.Options["ClusterAlg"].as<std::string>().c_str()), 
+                                                                       fTimeRes(config.Options["TimeRes"].as<double>()), fPosRes(10.)
   {
     config.Output->Branch("CandFromTOF", &fCands);
   }

@@ -23,12 +23,15 @@
 #include "ROOT/Base/TFileSentry.h"
 
 //Option parser includes
-#include "IO/Option/runtime/CmdLine.h"
+/*#include "IO/Option/runtime/CmdLine.h"
 #include "IO/Option/runtime/Options.h"
 #include "IO/Option/runtime/ExactlyOnce.h"
 #include "IO/Option/runtime/Exists.h"
 #include "IO/Option/runtime/Accumulate.h"
-#include "IO/Option/PrintCmdLine.cxx"
+#include "IO/Option/PrintCmdLine.cxx"*/
+
+//yaml-cpp includes
+#include "yaml-cpp/yaml.h"
 
 //ROOT includes
 #include "TChain.h"
@@ -40,12 +43,12 @@
 //c++ includes
 #include <iostream>
 
-int main(int argc, char** argv)
+int main(int argc, const char** argv)
 {
   try
   {
     //Read command line for application options.  Ignore keys that weren't requested for now since plugins might want them.  
-    opt::CmdLine cmdLine("Runs reconstruction and analysis plugins over the entries in edepsim input files.  Plugins have the opportunity "
+    /*opt::CmdLine cmdLine("Runs reconstruction and analysis plugins over the entries in edepsim input files.  Plugins have the opportunity "
                          "to request additional objects not in normal edepsim TTrees.");
     cmdLine.AddKey("--regex", "Regular expression for files to read.");
     cmdLine.AddKey("--path", "Path to files to be read.");
@@ -61,17 +64,56 @@ int main(int argc, char** argv)
     auto& anaFactory = plgn::Factory<plgn::Analyzer>::instance();
     anaFactory.RegCmdLine(cmdLine);
 
-    const auto options = cmdLine.Parse(argc, argv);
+    const auto options = cmdLine.Parse(argc, argv);*/
 
-    //Print out the command line so this job can be repeated easily
-    opt::PrintCmdLine(argc, argv, options["--reco-file"]);
+    YAML::Node config; //TODO: Construct a YAML::Node instead?  This would let me "include" files by specifying them first on the 
+                                     //      command line, and it might make adding an "include" tag much easier in the future.    
+    std::vector<std::string> inFiles;
 
-    //Parameters from the command line
-    const auto inFiles = util::RegexFilesPath<std::string>(options["--regex"], options["--path"]);
+    //Parse the command line
+    for(int pos = 0; pos < argc; ++pos)
+    {
+      const std::string arg(argv[pos]);
+      if(arg.find(".yaml") != std::string::npos) 
+      {
+        auto docs = YAML::LoadAll(arg);
+        for(const auto& doc: docs) config[arg].push_back(doc);
+      }
+      else if(arg.find(".root") != std::string::npos) inFiles.push_back(arg);
+      else 
+      {
+        std::cerr << "Got command line argument that is neither a ROOT file nor a configuration file:" << arg << "\n";
+        return 7;
+      }
+      //TODO: Regular expression support via RegexFiles?
+    }
 
+    //TODO: Support for specifying input files in the configuration file?
+    //TODO: Include directives?  For now, specify "include"d files on the command line before other files need them.  
+
+    //Look for options for the application first
+    const auto& appOpt = config["app"];
+    if(!appOpt) 
+    {
+      std::cerr << "No application options specified, so not doing anything.\n";
+      return 8; 
+    }
+    
+    long int nEvents = -1; //placeholder value
+    if(appOpt["source"])
+    {
+      const auto& source = appOpt["source"];
+      const auto& files = source["files"];
+      if(files) for(auto name = files.begin(); name != files.end(); ++name) inFiles.push_back(name->as<std::string>());
+      //TODO: Support for regular expressions via RegexFiles?
+
+      if(source["NEvents"]) nEvents = source["NEvents"].as<long int>();
+    }
+
+    //Validate configuration so far and prepare to read files
     if(inFiles.empty())
     {
-      std::cerr << "No files found at path " << options["--path"] << " that match regular expression " << options["--regex"] << "\n";
+      std::cerr << "No input files found, so not doing anything.\n";
       return 6;
     }
 
@@ -88,69 +130,79 @@ int main(int argc, char** argv)
     {
       std::cerr << "File " << inFile->GetName() << " did not have a TTree named EDepSimEvents, so it is not an edepsim input file.\n";
       return 2;
-    }         
+    }
 
     TTreeReader inReader(inTree);
-    TTreeReaderValue<TG4Event> event(inReader, "Event");  
+    TTreeReaderValue<TG4Event> event(inReader, "Event");
 
     TFile* outFile = nullptr;
     TTree* outTree = nullptr;
 
-    const auto recos = options.Get<std::vector<std::string>>("--reco");
+    //Find all algorithms from the configuration document.  
     std::vector<std::unique_ptr<plgn::Reconstructor>> recoAlgs;
-    if(recos.front() != "") //TODO: There is a dummy entry in all Accumulate options
-    {  
+    plgn::Reconstructor::Config recoConfig;
+    recoConfig.Input = &inReader;
+    recoConfig.Output = outTree;
+
+    if(config["reco"])
+    {
       //Only create an output file if there are Reconstructors being run
       //Create a copy of the structure of the input tree
-      outFile = TFile::Open(options["--reco-file"].c_str(), "CREATE");
+      outFile = TFile::Open(config["reco"]["OutputName"].as<std::string>().c_str(), "CREATE"); 
       if(!outFile)
-      {   
-        std::cerr << "Could not create a new file called " << options["--reco-file"] << " to write out reconstructed events.\n";
+      {
+        std::cerr << "Could not create a new file called " << outFile->GetName() << " to write out reconstructed events.\n";
         return 3;
       }
 
-      outTree = inTree->CloneTree(0); 
+      outTree = inTree->CloneTree(0);
       outTree->SetDirectory(outFile);
-    
-      //Get reconstruction plugins
-      plgn::Reconstructor::Config config;
-      config.Input = &inReader;
-      config.Output = outTree;
-      config.Options = &options;
 
-      for(const auto& reco: recos)
+      plgn::Reconstructor::Config recoConfig;
+      recoConfig.Input = &inReader;
+      recoConfig.Output = outTree;
+
+      const auto& recos = config["reco"]["algs"];
+      auto& recoFactory = plgn::Factory<plgn::Reconstructor>::instance();
+      for(auto reco =  recos.begin(); reco != recos.end(); ++reco)
       {
-        auto recoAlg = recoFactory.Get(reco, config);
-        if(recoAlg) 
+        recoConfig.Options = reco->second;
+        auto recoAlg = recoFactory.Get(reco->first.as<std::string>(), recoConfig);
+        if(recoAlg)
         {
           recoAlgs.push_back(std::move(recoAlg));
         }
-        else std::cerr << "Could not find Reconstructor algorithm " << reco << "\n";
+        else std::cerr << "Could not find Reconstructor algorithm " << reco->first << "\n";
       }
     }
     else std::cout << "No Reconstructors specified, so not creating an output file.\n";
-     
+ 
+    //Parameters from the command line
+    //const auto inFiles = util::RegexFilesPath<std::string>(options["--regex"], options["--path"]);
+
     //Get analysis plugins
-    const auto anas = options.Get<std::vector<std::string>>("--ana");
     std::vector<std::unique_ptr<plgn::Analyzer>> anaAlgs;    
 
     std::unique_ptr<util::TFileSentry> anaFile(nullptr); 
-    if(anas.front() != "") //TODO: There is a dummy entry in all Accumulate options
+    if(config["analysis"]) 
     { 
-      anaFile.reset(new util::TFileSentry("histos_"+options["--reco-file"]));
+      anaFile.reset(new util::TFileSentry("histos_"+std::string(outFile->GetName()))); 
       //Only create histogram file if I am running analysis plugins                                                              
-      //TODO: Directory for each plugin?
-      util::SelectStyle(options["--style"]);
+      util::SelectStyle(config["analysis"]["style"].as<std::string>()); 
       plgn::Analyzer::Config anaConfig;
       anaConfig.File = anaFile.get();
       anaConfig.Reader = &inReader;
-      anaConfig.Options = &options;
+      //anaConfig.Options = &options;
   
-      for(const auto& ana: anas)
+      const auto& anas = config["analysis"]["algs"];
+      auto& anaFactory = plgn::Factory<plgn::Analyzer>::instance();
+      for(auto ana = anas.begin(); ana != anas.end(); ++ana)
       {
-        auto anaAlg = anaFactory.Get(ana, anaConfig);
+        anaConfig.Options = ana->second;
+        anaFile->cd(ana->first.as<std::string>());
+        auto anaAlg = anaFactory.Get(ana->first.as<std::string>(), anaConfig);
         if(anaAlg) anaAlgs.push_back(std::move(anaAlg));
-        else std::cerr << "Could not find Analyzer algorithm " << ana << "\n";
+        else std::cerr << "Could not find Analyzer algorithm " << ana->first << "\n";
       }
     }
     else std::cout << "No Analyzers specified, so not creating a histogram file.\n";
@@ -187,6 +239,8 @@ int main(int argc, char** argv)
 
       for(const auto entry: inReader)
       {
+        if(entry == nEvents) break;
+
         //First, call Reconstructor plugins
         bool foundReco = false;
         for(const auto& reco: recoAlgs)
@@ -204,10 +258,14 @@ int main(int argc, char** argv)
         //else std::cout << "No reconstruction objects to save for event " << entry << "\n";
 
         //Next, call analysis plugins
-        for(const auto& ana: anaAlgs) ana->Analyze();
+        for(const auto& ana: anaAlgs) 
+        {
+          //TODO: Change to directory for this analyzer in case make is called during Analyze.  This might be an indication that I need to rethink
+          //      TFileSentry. 
+          ana->Analyze();
+        }
 
         if(entry%100 == 0 || entry < 100) std::cout << "Finished processing event " << entry << "\n";
-        if(entry == options.Get<size_t>("--n-events")) break; 
 
         //TODO: Use gGeoManager in plugins for now, but consider retrieving TGeoManager from current file instead.  
       }
@@ -218,12 +276,13 @@ int main(int argc, char** argv)
     {
       if(!outTree) std::cerr << "Output file was created, but there is no output TTree!\n";
       outFile->cd();
-      outTree->Write();
+      outTree->Write(); //TODO: Create a friend TTree instead of copying the entire file to reduce size of reconstruction.  See Guang's port of 
+                        //      T2K FGD code for example of friend trees.
 
       //Copy geometry and edepsim PassThru information from last file (?)
       //TODO: Copy from all files
       //For now, assuming that the geometry is the same in each file and the pass-thru information is an empty directory.  
-      auto man = (TGeoManager*)inFile->Get("EDepSimGeometry");
+      auto man = (TGeoManager*)inFile->Get("EDepSimGeometry");  
       //auto passThru = (TDirectoryFile*)inFile->Get("DetSimPassThru"); //This has always been empty so far, so not copying it for now.
       outFile->cd();
       man->Write();

@@ -8,12 +8,8 @@
 
 //util includes
 #include "ROOT/Base/TFileSentry.h"
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/Accumulate.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
 
-namespace plgn
+/*namespace plgn
 {
   //Register command line options
   template <>
@@ -23,18 +19,18 @@ namespace plgn
                                                      "as with all other particle types.", "");
     opts.AddKey("--birks-E-min", "Minimum energy of deposits plotted by BirksValiation Analyzer.", "0.");
   }
-}
+}*/
 
 namespace ana
 {
-  BirksValidation::BirksValidation(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fEMin(config.Options->Get<double>("--birks-E-min"))
+  BirksValidation::BirksValidation(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fEMin(config.Options["EMin"].as<double>())
   {
     fVisFracVersusdEdx = config.File->make<TH2D>("VisFracVsdEdx", "Visible Fraction of Energy versus #frac{dE}{dx};#frac{dE}{dx};Fraction Visible;"
                                                                   "Hit Segments", 1000, 0., 300, 1000, 0, 1);
     fBirksResidual = config.File->make<TH1D>("BirksResidual", "Fractional Difference Between Visible Energy and Direct Birks' Law;"
                                                               "Fractional Residual;Hit Segments", 4000, -2, 2);
 
-    const auto partNames = config.Options->Get<std::vector<std::string>>("--birks-particle");
+    const auto partNames = config.Options["BirksParticle"].as<std::vector<std::string>>();
     for(const auto& name: partNames)
     {
       if(name == "") continue; //TODO: Fix this feature of opt::Accumulate

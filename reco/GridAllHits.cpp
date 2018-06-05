@@ -4,10 +4,6 @@
 
 //util includes
 #include "Base/exception.h"
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
-#include "IO/Option/runtime/Exists.h"
 
 //edepsim includes
 #include "TG4Trajectory.h"
@@ -30,7 +26,7 @@
 #include <set>
 
 
-namespace plgn
+/*namespace plgn
 {
   //Set up command line parsing
   template <>
@@ -42,15 +38,15 @@ namespace plgn
     opts.AddKey<opt::Exists>("--after-birks", "Use secondary energy deposit which can be calculated after applying Birks' Law.", "false");
     opts.AddKey("--time-res", "Time resolution of 3DST in ns.  Used to smear times of hits.", "0.7");
   }
-}
+}*/
 
 namespace reco
 {
   GridAllHits::GridAllHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), 
-                                                                       fEMin(config.Options->Get<double>("--E-min")), 
-                                                                       fHitAlg(config.Options->Get<double>("--cube-size"), 
-                                                                               config.Options->Get<bool>("--after-birks"),  
-                                                                               config.Options->Get<double>("--time-res"))
+                                                                       fEMin(config.Options["EMin"].as<double>()), 
+                                                                       fHitAlg(config.Options["CubeSize"].as<double>(), 
+                                                                               config.Options["AfterBirks"].as<bool>(),  
+                                                                               config.Options["TimeRes"].as<double>())
   {
     config.Output->Branch("GridAllHits", &fHits);
   }

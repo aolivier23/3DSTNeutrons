@@ -7,6 +7,9 @@
 //edepsim includes
 #include "TG4Event.h"
 
+//yaml-cpp includes
+#include "yaml-cpp/yaml.h"
+
 //ROOT includes
 #include "TTreeReaderValue.h"
 
@@ -19,22 +22,16 @@ namespace util
   class TFileSentry;
 }
 
-namespace opt
-{
-  class CmdLine;
-  class Options;
-}
-
 namespace plgn
 {
   class Analyzer
   {
     public:
-      struct Config
+      struct Config //TODO: Provide a constructor so that I can hold reference members?
       {
         util::TFileSentry* File;
         TTreeReader* Reader;
-        const opt::Options* Options;
+        YAML::Node Options;
       };
 
       Analyzer(const Config& config);

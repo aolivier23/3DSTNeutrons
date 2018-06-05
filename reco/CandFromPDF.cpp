@@ -3,11 +3,6 @@
 //       Tries to stitch together MCClusters that could have come from the same FS neutron based on timing.
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 
-//util includes
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
-
 //EDepNeutrons includes
 #include "app/Factory.cpp"
 #include "reco/CandFromPDF.h"
@@ -44,7 +39,7 @@ namespace
   }
 }
 
-namespace plgn
+/*namespace plgn
 {
   //Register command line options
   template <>
@@ -60,23 +55,25 @@ namespace plgn
     opts.AddKey("--PDF-file", "Name of a .root file with a TH2D named BetaVsEDep.  Histogram will be used as a Probability Density Function to "
                               "distnguish clusters from different FS neutrons.", defaultPath+"BetaVsEDep.root");
   }
-}
+}*/
 
 namespace reco
 {
   CandFromPDF::CandFromPDF(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fCands(), 
-                                                                       fClusters(*(config.Input), (*(config.Options))["--cluster-alg"].c_str()), 
-                                                                       fClusterAlgName((*(config.Options))["--cluster-alg"].c_str()), 
-                                                                       fTimeRes(config.Options->Get<double>("--time-res")), fPosRes(10.), 
+                                                                       fClusters(*(config.Input), 
+                                                                                 config.Options["ClusterAlg"].as<std::string>().c_str()), 
+                                                                       fClusterAlgName(config.Options["ClusterAlg"].as<std::string>().c_str()), 
+                                                                       fTimeRes(config.Options["TimeRes"].as<double>()), fPosRes(10.), 
                                                                        fBetaVsEDep(nullptr)
   {
     config.Output->Branch("CandFromPDF", &fCands);
 
     //TODO: Throw exception if file or histogram doesn't exist
-    auto pdfFile = TFile::Open((*(config.Options))["--PDF-file"].c_str());
-    if(!pdfFile) std::cerr << "Failed to find file " << (*(config.Options))["--PDF-file"] << "\n";
+    const auto fileName = config.Options["--PDF-file"].as<std::string>();
+    auto pdfFile = TFile::Open(fileName.c_str());
+    if(!pdfFile) std::cerr << "Failed to find file " << fileName << "\n";
     auto hist = (TH2D*)(pdfFile->Get("BetaVsEDep"));
-    if(!hist) std::cerr << "Failed to find histogram named BetaVsEDep in file " << (*(config.Options))["--PDF-file"] << "\n";
+    if(!hist) std::cerr << "Failed to find histogram named BetaVsEDep in file " << fileName << "\n";
     fBetaVsEDep.reset((TH2D*)(hist->Clone()));
     if(fBetaVsEDep->Integral() > 1.0) fBetaVsEDep->Scale(1./fBetaVsEDep->Integral()); //Normalize PDF if it's not already normalized
     fPenaltyTerm = 8.5/fBetaVsEDep->GetEntries(); //2.e-20/fBetaVsEDep->GetNbinsX()/fBetaVsEDep->GetNbinsY(); //1./fBetaVsEDep->GetEntries();  

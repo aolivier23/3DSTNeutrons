@@ -49,31 +49,17 @@ namespace
   }
 }
 
-namespace plgn
-{
-  //Set up command line parsing
-  template <>
-  void RegCmdLine<reco::GridNeutronHits>(opt::CmdLine& opts)
-  {
-    opts.AddKey("--E-min", "In GridNeutronHits, minimum energy for a hit to be visible.", "1.5");
-    opts.AddKey("--cube-size", "In GridNeutronHits, size of cube-shaped subdetectors that will become hits.", "10.");
-    opts.AddKey("--neighbor-cut", "Cut that requires no nearby energy deposits.", "2");
-    opts.AddKey<opt::Exists>("--after-birks", "Use secondary energy deposit which can be calculated after applying Birks' Law.", "false");
-    opts.AddKey("--time-res", "Time resolution of 3DST in ns.  Used to smear times of hits.", "0.7");
-  }
-}
-
 namespace reco
 {
   GridNeutronHits::GridNeutronHits(const plgn::Reconstructor::Config& config): plgn::Reconstructor(config), fHits(), 
-                                                                               fHitAlg(config.Options->Get<double>("--cube-size"), 
-                                                                                       config.Options->Get<bool>("--after-birks"), 
-                                                                                       config.Options->Get<double>("--time-res"))
+                                                                               fHitAlg(config.Options["CubeSize"].as<double>(), 
+                                                                                       config.Options["AfterBirks"].as<bool>(), 
+                                                                                       config.Options["TimeRes"].as<double>())
   {
     config.Output->Branch("GridNeutronHits", &fHits);
     
-    fEMin = config.Options->Get<double>("--E-min");
-    fNeighborDist = config.Options->Get<size_t>("--neighbor-cut");
+    fEMin = config.Options["EMin"].as<double>();
+    fNeighborDist = config.Options["NeighborCut"].as<size_t>();
   } 
 
   //Produce MCHits from TG4HitSegments descended from FS neutrons above threshold

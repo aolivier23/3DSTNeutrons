@@ -9,14 +9,11 @@
 
 //util includes
 #include "ROOT/Base/TFileSentry.h"
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
 
 //c++ includes
 #include <numeric>
 
-namespace plgn
+/*namespace plgn
 {
   //Register command line options
   template <>
@@ -25,13 +22,14 @@ namespace plgn
     opts.AddKey("--cand-alg", "Name of the branch of pers::NeutronCands to analyze.  Usually the name of the candidate-making algorithm.", "CandFromTOF");
     opts.AddKey("--E-min", "Minimum energy for a FS neutron to be plotted.  Should match hit-making and cluster-making algorithms.", "1.5");
   }
-}
+}*/
 
 namespace ana
 {
   CandRecoStats::CandRecoStats(const plgn::Analyzer::Config& config): plgn::Analyzer(config), 
-                                                                      fCands(*(config.Reader), (*(config.Options))["--cand-alg"].c_str()), 
-                                                                      fMinEnergy(config.Options->Get<double>("--E-min"))
+                                                                      fCands(*(config.Reader), 
+                                                                             config.Options["--cand-alg"].as<std::string>().c_str()), 
+                                                                      fMinEnergy(config.Options["EMin"].as<double>())
   {
     fCandidateEnergy = config.File->make<TH1D>("CandidateEnergy", "Energy Specturm of Neutron Candidates;Energy [MeV];Events",
                                                150, 0, 150);

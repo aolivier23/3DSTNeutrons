@@ -6,18 +6,15 @@
 //edepsim includes
 #include "TG4Event.h"
 
+//yaml-cpp includes
+#include "yaml-cpp/yaml.h"
+
 //ROOT includes
 #include "TTreeReaderValue.h"
 
 class TTreeReader;
 class TTree;
 class TGeoManager;
-
-namespace opt
-{
-  class CmdLine;
-  class Options;
-}
 
 namespace plgn
 {
@@ -28,7 +25,7 @@ namespace plgn
       {
         TTreeReader* Input;
         TTree* Output;
-        const opt::Options* Options;
+        YAML::Node Options;
       };
 
       Reconstructor(const Config& config);
