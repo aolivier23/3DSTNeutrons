@@ -4,10 +4,6 @@
 
 //util includes
 #include "Base/exception.h"
-#include "IO/Option/runtime/CmdLine.h"
-#include "IO/Option/runtime/Options.h"
-#include "IO/Option/runtime/ExactlyOnce.h"
-#include "IO/Option/runtime/Exists.h"
 
 //edepsim includes
 #include "TG4Trajectory.h"

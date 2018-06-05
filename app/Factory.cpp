@@ -7,9 +7,6 @@
 //Author: Andrew Olivier aolivier@ur.rochester.edu
 //Inspired by the conversation at https://codereview.stackexchange.com/questions/119812/compile-time-plugin-system
 
-//util include
-#include "IO/Option/runtime/CmdLine.h"
-
 //c++ includes
 #include <memory> //For std::unique_ptr
 #include <map>
