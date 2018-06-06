@@ -77,7 +77,12 @@ int main(int argc, const char** argv)
       if(arg.find(".yaml") != std::string::npos) 
       {
         auto docs = YAML::LoadAll(arg);
-        for(const auto& doc: docs) config[arg].push_back(doc);
+        for(const auto& doc: docs) 
+        {
+          if(!doc.IsNull()) config[arg].push_back(doc);
+          else if //TODO: Try configuration directory
+          else std::cerr << "Could not find 
+        }
       }
       else if(arg.find(".root") != std::string::npos) inFiles.push_back(arg);
       else 
