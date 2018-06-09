@@ -84,13 +84,28 @@ namespace reco
     { 
       for(const auto& seg: det.second)
       {
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto segStart = seg.GetStart();
+		const auto segStop = seg.GetStop();
+        #else
+        const auto segStart = seg.Start;
+		const auto segStop = seg.Stop;
+        #endif
         //Fiducial cut
-        const auto start = geo::InLocal(seg.Start.Vect(), mat);
-        const auto stop = geo::InLocal(seg.Stop.Vect(), mat);
+        const auto start = geo::InLocal(segStart.Vect(), mat);
+        const auto stop = geo::InLocal(segStop.Vect(), mat);
         double arr[] = {start.X(), start.Y(), start.Z()};
         if(shape->Contains(arr)) 
         {
-          fHitAlg.MakeHitData(seg, hits, mat, [&neutDescendIDs](const auto& seg){ return !(neutDescendIDs.count(seg.PrimaryId)); });
+          fHitAlg.MakeHitData(seg, hits, mat, [&neutDescendIDs](const auto& seg)
+			{
+				#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+				const int segPrimary = seg.GetPrimaryId();
+				#else
+				const int segPrimary = seg.PrimaryId;
+				#endif 
+				return !(neutDescendIDs.count(segPrimary)); 
+			});
         } //If this hit segment is in the fiducial volume
       } //Loop over all hit segments in this sensitive detector 
     } //For each sensitive detector
@@ -161,11 +176,20 @@ namespace reco
     {
       for(const auto& prim: vtx.Particles)
       {
-        const auto mom = trajs[prim.TrackId].InitialMomentum;
-        if(prim.Name == "neutron" && mom.E()-mom.Mag() > fEMin)
+	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        auto primId = prim.GetTrackId();
+	const auto mom = trajs[primId].GetInitialMomentum();
+        const auto name = prim.GetName();
+        #else
+        auto primId = prim.TrackId;
+	const auto mom = trajs[primId].InitialMomentum;
+        const auto name = prim.Name.c_str();
+        #endif
+
+        if(strcmp(name, "neutron") == 0 && mom.E()-mom.Mag() > fEMin)
         {
-          truth::Descendants(prim.TrackId, trajs, neutDescendIDs);
-          neutDescendIDs.insert(prim.TrackId);
+          truth::Descendants(primId, trajs, neutDescendIDs);
+          neutDescendIDs.insert(primId);
         }
         //else std::cout << "Primary named " << prim.Name << " with KE " << mom.E()-mom.Mag() << " is not a FS neutron.\n";
       }
@@ -204,5 +228,5 @@ namespace reco
     return noNeighbors;
   }
 
-  REGISTER_PLUGIN(GridNeutronHits, plgn::Reconstructor);
+  REGISTER_PLUGIN(GridNeutronHits, plgn::Reconstructor)
 }

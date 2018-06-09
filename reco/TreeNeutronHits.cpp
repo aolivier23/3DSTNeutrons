@@ -55,11 +55,20 @@ namespace reco
     {
       for(const auto& prim: vtx.Particles)
       {
-        const auto mom = trajs[prim.TrackId].InitialMomentum;
-        if(prim.Name == "neutron" && mom.E()-mom.Mag() > fEMin) 
+	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        auto primId = prim.GetTrackId();
+	const auto mom = trajs[primId].GetInitialMomentum();
+        const auto name = prim.GetName();
+        #else
+        auto primId = prim.TrackId;
+	const auto mom = trajs[primId].InitialMomentum;
+        const auto name = prim.Name.c_str();
+        #endif
+
+        if(strcmp(name, "neutron") == 0 && mom.E()-mom.Mag() > fEMin) 
         {
-          truth::Descendants(prim.TrackId, trajs, neutDescendIDs);
-          neutDescendIDs.insert(prim.TrackId);
+          truth::Descendants(primId, trajs, neutDescendIDs);
+          neutDescendIDs.insert(primId);
         }
         //else std::cout << "Primary named " << prim.Name << " with KE " << mom.E()-mom.Mag() << " is not a FS neutron.\n";
       }
@@ -86,31 +95,43 @@ namespace reco
       for(const auto& seg: det.second) //Loop over TG4HitSegments in this sensitive detector
       {
         //Simple fiducial cut.  Should really look at how much of deposit is inside the fiducial volume or something.  
-        //Ideally, I'll just get edepsim to do this for me in the future by creating a volume for each scintillator block.  
-        const auto local = geo::InLocal((seg.Start.Vect()+seg.Stop.Vect())*0.5, mat);
+        //Ideally, I'll just get edepsim to do this for me in the future by creating a volume for each scintillator block. 
+		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto segStart = seg.GetStart();
+		const auto segStop = seg.GetStop();
+        const int segPrim = seg.GetPrimaryId();
+		auto segEnergy = seg.GetEnergyDeposit();
+        #else
+        const auto segStart = seg.Start;
+		const auto segStop = seg.Stop;
+        const int segPrim = seg.PrimaryId;
+		auto segEnergy = seg.EnergyDeposit;
+        #endif
+
+        const auto local = geo::InLocal((segStart.Vect()+segStop.Vect())*0.5, mat);
         double arr[] = {local.X(), local.Y(), local.Z()};
         if(shape->Contains(arr))
         {
-          if(neutDescendIDs.count(seg.PrimaryId))
+          if(neutDescendIDs.count(segPrim))
           {
-            const auto center = (seg.Start+seg.Stop).Vect()*0.5; //TODO: Really, an Octree that knows to split TG4HitSegments would be ideal here
+            const auto center = (segStart+segStop).Vect()*0.5; //TODO: Really, an Octree that knows to split TG4HitSegments would be ideal here
             auto pair = neutGeom[center];
             if(!pair.second) 
             {
               pair.second = new pers::MCHit();
-              pair.second->Position = TLorentzVector(pair.first.X(), pair.first.Y(), pair.first.Z(), seg.Start.T());
+              pair.second->Position = TLorentzVector(pair.first.X(), pair.first.Y(), pair.first.Z(), segStart.T());
             }
 
             auto& hit = *(pair.second);
-            hit.Energy += seg.EnergyDeposit;
-            hit.TrackIDs.push_back(seg.PrimaryId);
+            hit.Energy += segEnergy;
+            hit.TrackIDs.push_back(segPrim);
           }
           else 
           {
-            auto ptr = otherGeom[(seg.Start+seg.Stop).Vect()*0.5].second;
+            auto ptr = otherGeom[(segStart+segStop).Vect()*0.5].second;
             if(!ptr) ptr = new double();
             auto& edep = *ptr;
-            edep += seg.EnergyDeposit;
+            edep += segEnergy;
           }
         }
       }
@@ -132,5 +153,5 @@ namespace reco
 
     return !(fHits.empty());
   }
-  REGISTER_PLUGIN(TreeNeutronHits, plgn::Reconstructor);
+  REGISTER_PLUGIN(TreeNeutronHits, plgn::Reconstructor)
 }

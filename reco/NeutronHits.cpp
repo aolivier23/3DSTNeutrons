@@ -59,10 +59,10 @@ namespace reco
       const auto mom = traj.GetInitialMomentum();
       const auto name = traj.GetName();
       #else
-      const auto name = traj.Name;
+      const auto name = traj.Name.c_str();
       const auto mom = traj.InitialMomentum;
       #endif
-      if(name == "neutron" && mom.E()-mom.Mag() > fEMin) 
+      if(strcmp(name, "neutron") == 0 && mom.E()-mom.Mag() > fEMin) 
       {
         #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
         const int id = traj.GetTrackId();
@@ -153,10 +153,10 @@ namespace reco
               neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat, &nContrib](auto& seg)
                                  {
                                    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
-                                   auto& segStart = seg.GetStart();
-                                   auto& segStop = seg.GetStop();
+                                   auto segStart = seg.GetStart();
+                                   auto segStop = seg.GetStop();
                                    const int segPrim = seg.GetPrimaryId();
-                                   auto& segEDep = seg.GetEnergyDeposit();
+                                   auto segEDep = seg.GetEnergyDeposit();
                                    #else
                                    auto& segStart = seg.Start;
                                    auto& segStop = seg.Stop;
@@ -202,9 +202,9 @@ namespace reco
                 others.remove_if([&otherE, &hitBox, &boxCenter, mat](auto& seg)
                                  {
                                    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
-                                   auto& segStart = seg.GetStart();
-                                   auto& segStop = seg.GetStop();
-                                   auto& segEDep = seg.GetEnergyDeposit();
+                                   auto segStart = seg.GetStart();
+                                   auto segStop = seg.GetStop();
+                                   auto segEDep = seg.GetEnergyDeposit();
                                    #else
                                    auto& segStart = seg.Start;
                                    auto& segStop = seg.Stop;
@@ -248,5 +248,5 @@ namespace reco
     return !(fHits.empty());
   }
 
-  REGISTER_PLUGIN(NeutronHits, plgn::Reconstructor);
+  REGISTER_PLUGIN(NeutronHits, plgn::Reconstructor)
 }

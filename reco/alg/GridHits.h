@@ -78,8 +78,22 @@ namespace reco
         TVector3 center(0., 0., 0.);
     
         //Fiducial cut
-        const auto start = geo::InLocal(seg.Start.Vect(), mat);
-        const auto stop = geo::InLocal(seg.Stop.Vect(), mat);
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto segStart = seg.GetStart();
+		const auto segStop = seg.GetStop();
+        const int segPrim = seg.GetPrimaryId();
+		auto segEnergy = seg.GetEnergyDeposit();
+		auto segSecondary = seg.GetSecondaryDeposit();
+        #else
+        const auto segStart = seg.Start;
+		const auto segStop = seg.Stop;
+        const int segPrim = seg.PrimaryId;
+		auto segEnergy = seg.EnergyDeposit;
+		auto segSecondary = seg.SecondaryDeposit;
+        #endif
+
+        const auto start = geo::InLocal(segStart.Vect(), mat);
+        const auto stop = geo::InLocal(segStop.Vect(), mat);
         const auto xCond = std::minmax({start.X(), stop.X()});
         const auto yCond = std::minmax({start.Y(), stop.Y()});
         const auto zCond = std::minmax({start.Z(), stop.Z()});
@@ -99,20 +113,20 @@ namespace reco
               if(dist > 0)
               {
                 ++hit.NContrib;
-                const double length = (seg.Stop.Vect()-seg.Start.Vect()).Mag();
-                hit.Time += seg.Start.T() + (seg.Stop.T() - seg.Start.T())*dist/length; 
+                const double length = (segStop.Vect()-segStart.Vect()).Mag();
+                hit.Time += segStart.T() + (segStop.T() - segStart.T())*dist/length; 
                                                                         //TODO: The particle is slowing down if it is depositing energy.  So, this time is also wrong, but 
                                                                         //      slightly more realistic than using starting time.  I could get the velocity at a point and 
                                                                         //      use that to get time here.    
                     
                 if(dist <= length+1e-5) //TODO: remove sanity check on distance
                 {
-                  const double edep = (fUseSecondary?seg.EnergyDeposit:seg.SecondaryDeposit)*dist/length;
+                  const double edep = (fUseSecondary?segEnergy:segSecondary)*dist/length;
                   hit.Energy += edep; 
                   if(pred(seg)) hit.OtherE += edep; //User hook to keep track of energy from "special" segments
                   else 
                   {
-                    hit.TrackIDs.push_back(seg.PrimaryId);
+                    hit.TrackIDs.push_back(segPrim);
                   }
                 }
                 else std::cerr << "Got distance inside hitBox that is greater than this segment's length!  dist is: " << dist << "\nlength is: " << length << "\n";

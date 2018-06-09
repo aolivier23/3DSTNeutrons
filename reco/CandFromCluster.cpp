@@ -45,7 +45,12 @@ namespace reco
     fCands.clear(); //Clear out the old clusters from last time!
 
     const auto& vertex = fEvent->Primaries; //TODO: What to do when there are multiple vertices?  
-    const auto& vertPos = vertex.front().Position; 
+    
+	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+    const auto& vertPos = vertex.front().GetPosition();
+    #else
+    const auto& vertPos = vertex.front().Position;
+    #endif 
 
     //Physical constants
     const double mass = 939.6;
@@ -79,6 +84,6 @@ namespace reco
 
     return !(fCands.empty());
   }
-  REGISTER_PLUGIN(CandFromCluster, plgn::Reconstructor);
+  REGISTER_PLUGIN(CandFromCluster, plgn::Reconstructor)
 }
 

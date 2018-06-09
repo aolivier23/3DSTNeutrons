@@ -56,8 +56,13 @@ namespace reco
   {
     fCands.clear(); //Clear out the old clusters from last time!
 
-    const auto& vertex = fEvent->Primaries; //TODO: What to do when there are multiple vertices?  
-    const auto& vertPos = vertex.front().Position; 
+    const auto& vertex = fEvent->Primaries; //TODO: What to do when there are multiple vertices?
+
+	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+    const auto& vertPos = vertex.front().GetPosition();
+    #else
+    const auto& vertPos = vertex.front().Position;
+    #endif
 
     //First, sort clusters by starting time to timing resolution, then distance to vertex  
     //TODO: TTreeReaderArray::Iterator_t is NOT an STL random access iterator, so I can't use std::sort.  Maybe copy to my own STL container for 
@@ -186,6 +191,6 @@ namespace reco
 
     return !(fCands.empty());
   }
-  REGISTER_PLUGIN(CandFromTOF, plgn::Reconstructor);
+  REGISTER_PLUGIN(CandFromTOF, plgn::Reconstructor)
 }
 

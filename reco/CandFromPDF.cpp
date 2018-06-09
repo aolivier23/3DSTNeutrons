@@ -84,7 +84,12 @@ namespace reco
     fCands.clear(); //Clear out the old clusters from last time!
 
     const auto& vertex = fEvent->Primaries; //TODO: What to do when there are multiple vertices?  
+    
+	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+    const auto& vertPos = vertex.front().GetPosition();
+    #else
     const auto& vertPos = vertex.front().Position;
+    #endif
 
     //std::cout << "fClusters.GetSize() is " << fClusters.GetSize() << "\n";
     std::vector<pers::NeutronCand> neutrons; //NeutronCands formed
@@ -226,6 +231,6 @@ namespace reco
 
     return !(fCands.empty());
   }
-  REGISTER_PLUGIN(CandFromPDF, plgn::Reconstructor);
+  REGISTER_PLUGIN(CandFromPDF, plgn::Reconstructor)
 }
 
