@@ -30,7 +30,7 @@ namespace ana
   CandTOF::CandTOF(const plgn::Analyzer::Config& config): plgn::Analyzer(config), fCands(*(config.Reader), 
                                                                                   config.Options["CandAlg"].as<std::string>().c_str()), 
                                                                 fClusters(*(config.Reader), 
-                                                                          config.Options["--clust-alg"].as<std::string>().c_str()),
+                                                                          config.Options["ClusterAlg"].as<std::string>().c_str()),
                                                                 fGen(std::chrono::system_clock::now().time_since_epoch().count()), 
                                                                 fGaus(0., config.Options["TimeRes"].as<double>()), fPosRes(10.), 
                                                                 fTimeRes(config.Options["TimeRes"].as<double>())

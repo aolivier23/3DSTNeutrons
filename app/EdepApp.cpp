@@ -188,12 +188,12 @@ int main(int argc, const char** argv)
     //const auto inFiles = util::RegexFilesPath<std::string>(options["--regex"], options["--path"]);
 
     //Get analysis plugins
-    std::vector<std::unique_ptr<plgn::Analyzer>> anaAlgs;    
+    std::vector<std::pair<std::string, std::unique_ptr<plgn::Analyzer>>> anaAlgs;    
 
     std::unique_ptr<util::TFileSentry> anaFile(nullptr); 
     if(config["analysis"]) 
     { 
-      anaFile.reset(new util::TFileSentry("histos_"+std::string(outFile->GetName()))); 
+      anaFile.reset(new util::TFileSentry(config["analysis"]["FileName"].as<std::string>().c_str())); 
       //Only create histogram file if I am running analysis plugins                                                              
       util::SelectStyle(config["analysis"]["style"].as<std::string>()); 
       plgn::Analyzer::Config anaConfig;
@@ -208,7 +208,7 @@ int main(int argc, const char** argv)
         anaConfig.Options = ana->second;
         anaFile->cd(ana->first.as<std::string>());
         auto anaAlg = anaFactory.Get(ana->first.as<std::string>(), anaConfig);
-        if(anaAlg) anaAlgs.push_back(std::move(anaAlg));
+        if(anaAlg) anaAlgs.emplace_back(ana->first.as<std::string>(), std::move(anaAlg));
         else std::cerr << "Could not find Analyzer algorithm " << ana->first << "\n";
       }
     }
@@ -268,8 +268,9 @@ int main(int argc, const char** argv)
         for(const auto& ana: anaAlgs) 
         {
           //TODO: Change to directory for this analyzer in case make is called during Analyze.  This might be an indication that I need to rethink
-          //      TFileSentry. 
-          ana->Analyze();
+          //      TFileSentry.
+          anaFile->cd(ana.first);
+          ana.second->Analyze();
         }
 
         if(entry%100 == 0 || entry < 100) std::cout << "Finished processing event " << entry << "\n";

@@ -69,7 +69,7 @@ namespace reco
     config.Output->Branch("CandFromPDF", &fCands);
 
     //TODO: Throw exception if file or histogram doesn't exist
-    const auto fileName = config.Options["--PDF-file"].as<std::string>();
+    const auto fileName = config.Options["PDFFile"].as<std::string>(); //TODO: Check default path
     auto pdfFile = TFile::Open(fileName.c_str());
     if(!pdfFile) std::cerr << "Failed to find file " << fileName << "\n";
     auto hist = (TH2D*)(pdfFile->Get("BetaVsEDep"));
