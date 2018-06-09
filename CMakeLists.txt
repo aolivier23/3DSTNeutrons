@@ -46,7 +46,7 @@ file(WRITE  "setup.sh" "#Make sure 3DSTNeutrons finds plugin libraries at runtim
 file(APPEND "setup.sh" "export LD_LIBRARY_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../lib:\${LD_LIBRARY_PATH}\"\n")
 file(APPEND "setup.sh" "#Tell 3DSTNeutrons where default configuration files are installed\n")
 file(APPEND "setup.sh" "export THREEDSTNEUTRONS_CONF_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../conf/\"\n") 
-file(APPEND "setup.sh" "#Make sure bash finds NeutronApp by default")
+file(APPEND "setup.sh" "#Make sure bash finds NeutronApp by default\n")
 file(APPEND "setup.sh" "export PATH=$PATH:\"`pwd`/`dirname \$BASH_SOURCE`/../bin\"") 
 install(FILES "setup.sh" DESTINATION bin)
 
