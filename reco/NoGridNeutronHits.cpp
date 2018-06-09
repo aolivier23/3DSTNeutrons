@@ -304,14 +304,14 @@ namespace reco
     {
       for(const auto& prim: vtx.Particles)
       {
-		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
         const int primId = prim.GetTrackId();
-		const auto mom = trajs[primId].GetInitialMomentum();
-		const auto name = prim.GetName();
+	const auto mom = trajs[primId].GetInitialMomentum();
+	const auto name = prim.GetName();
         #else
         const int primId = prim.TrackId;
-		const auto mom = trajs[primId].InitialMomentum;
-		const auto name = prim.Name;
+        const auto mom = trajs[primId].InitialMomentum;
+	const auto name = prim.Name.c_str();
         #endif
 
         if(strcmp(name, "neutron") == 0 && mom.E()-mom.Mag() > fEMin) 

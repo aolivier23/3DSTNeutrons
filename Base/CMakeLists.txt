@@ -9,7 +9,5 @@ link_directories( /usr/local/lib )
 include_directories( "${PROJECT_SOURCE_DIR}" )
 add_library( Util_Base exception.cxx )
 
-install( TARGETS Util_Base DESTINATION lib EXPORT Util_Base_exp )
-
-install( EXPORT Util_Base_exp DESTINATION lib/Util_Base )
+install( TARGETS Util_Base DESTINATION lib)
 install( FILES exception.h DESTINATION include/Base )

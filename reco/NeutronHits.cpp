@@ -62,7 +62,7 @@ namespace reco
       const auto mom = traj.GetInitialMomentum();
       const auto name = traj.GetName();
       #else
-      const auto name = traj.Name;
+      const auto name = traj.Name.c_str();
       const auto mom = traj.InitialMomentum;
       #endif
       if(strcmp(name, "neutron") == 0 && mom.E()-mom.Mag() > fEMin) 

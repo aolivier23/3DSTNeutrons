@@ -45,10 +45,10 @@ namespace reco
     {
       for(const auto& part: vert.Particles)
       {
-		#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
         const auto name = part.GetName();
         #else
-        const auto name = part.Name;
+        const auto name = part.Name.c_str();
         #endif
 		
         if(strcmp(name, "mu-") != 0 && strcmp(name, "mu+") != 0 && strcmp(name, "proton") != 0 && strcmp(name, "neutron") != 0) 
