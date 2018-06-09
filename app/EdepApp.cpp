@@ -66,23 +66,29 @@ int main(int argc, const char** argv)
 
     const auto options = cmdLine.Parse(argc, argv);*/
 
-    YAML::Node config; //TODO: Construct a YAML::Node instead?  This would let me "include" files by specifying them first on the 
-                                     //      command line, and it might make adding an "include" tag much easier in the future.    
     std::vector<std::string> inFiles;
+    std::string configFiles; //Accumulate the content of all configuration files into this string
 
     //Parse the command line
-    for(int pos = 0; pos < argc; ++pos)
+    for(int pos = 1; pos < argc; ++pos) //Argument 0 is the path to this executable
     {
       const std::string arg(argv[pos]);
       if(arg.find(".yaml") != std::string::npos) 
       {
-        auto docs = YAML::LoadAll(arg);
+        std::ifstream input(arg);
+        configFiles.append(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        
+        /*auto docs = YAML::LoadAllFromFile(arg);
         for(const auto& doc: docs) 
         {
-          if(!doc.IsNull()) config[arg].push_back(doc);
+          if(!doc.IsNull()) 
+          {
+            std::cout << "File " << arg << " was parsed as:\n" << doc << "\n";
+            for(auto node = doc.begin(); node != doc.end(); ++node) config[node->first] = node->second;
+          }
           //else if //TODO: Try configuration directory
           else std::cerr << "Could not parse file named " << arg << " as a YAML configuration file.\n";
-        }
+        }*/
       }
       else if(arg.find(".root") != std::string::npos) inFiles.push_back(arg);
       else 
@@ -93,26 +99,25 @@ int main(int argc, const char** argv)
       //TODO: Regular expression support via RegexFiles?
     }
 
-    //TODO: Support for specifying input files in the configuration file?
+    YAML::Node config = YAML::Load(configFiles);
+    //std::cout << "Configuration state is:\n" << config << "\n";
+
     //TODO: Include directives?  For now, specify "include"d files on the command line before other files need them.  
 
     //Look for options for the application first
-    const auto& appOpt = config["app"];
-    if(!appOpt) 
-    {
-      std::cerr << "No application options specified, so not doing anything.\n";
-      return 8; 
-    }
-    
     long int nEvents = -1; //placeholder value
-    if(appOpt["source"])
+    if(config["app"])
     {
-      const auto& source = appOpt["source"];
-      const auto& files = source["files"];
-      if(files) for(auto name = files.begin(); name != files.end(); ++name) inFiles.push_back(name->as<std::string>());
-      //TODO: Support for regular expressions via RegexFiles?
+      const auto& appOpt = config["app"];
+      if(appOpt["source"])
+      {
+        const auto& source = appOpt["source"];
+        const auto& files = source["files"];
+        if(files) for(auto name = files.begin(); name != files.end(); ++name) inFiles.push_back(name->as<std::string>());
+        //TODO: Support for regular expressions via RegexFiles?
 
-      if(source["NEvents"]) nEvents = source["NEvents"].as<long int>();
+        if(source["NEvents"]) nEvents = source["NEvents"].as<long int>();
+      }
     }
 
     //Validate configuration so far and prepare to read files
@@ -145,9 +150,6 @@ int main(int argc, const char** argv)
 
     //Find all algorithms from the configuration document.  
     std::vector<std::unique_ptr<plgn::Reconstructor>> recoAlgs;
-    plgn::Reconstructor::Config recoConfig;
-    recoConfig.Input = &inReader;
-    recoConfig.Output = outTree;
 
     if(config["reco"])
     {
@@ -162,6 +164,10 @@ int main(int argc, const char** argv)
 
       outTree = inTree->CloneTree(0);
       outTree->SetDirectory(outFile);
+
+      plgn::Reconstructor::Config recoConfig;
+      recoConfig.Input = &inReader;
+      recoConfig.Output = outTree;
 
       const auto& recos = config["reco"]["algs"];
       auto& recoFactory = plgn::Factory<plgn::Reconstructor>::instance();
