@@ -22,10 +22,9 @@ namespace util
     {
       fFile->mkdir(name.c_str())->cd();
       fPwd = gDirectory; //TODO: There is probably a better way to extract a TDirectory from a TFile
-      gDirectory = oldDir;
-      return fPwd;
     }
     gDirectory = oldDir;
+    return fPwd;
   }
 
   TFileSentry::~TFileSentry()
