@@ -1,4 +1,4 @@
-//File: EdepApp.cpp
+//File: NeutronApp.cpp
 //Brief: An EdepApp creates user-specified reconstruction and analysis plugins and processes a user-specified edepsim output file.  
 //       The reconstruction plugins are given read-only access to each entry from the old TTree and write access to 
 //       an entry in the new TTree. Reconstruction objects are written directly to the edepsim tree, as opposed to 
@@ -75,20 +75,28 @@ int main(int argc, const char** argv)
       const std::string arg(argv[pos]);
       if(arg.find(".yaml") != std::string::npos) 
       {
-        std::ifstream input(arg);
-        configFiles.append(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
-        
-        /*auto docs = YAML::LoadAllFromFile(arg);
-        for(const auto& doc: docs) 
+        std::ifstream input; //(arg);
+        input.open(arg);
+        if(!input) //If couldn't find configuration file in relative or absolute path, check in installation directory
         {
-          if(!doc.IsNull()) 
+          std::cout << "Failed to read file " << arg << ", so looking in package installation directory...\n";
+          input.clear();
+          std::string path = "";
+          const auto value = getenv("THREEDSTNEUTRONS_CONF_PATH");
+          if(value != nullptr) 
           {
-            std::cout << "File " << arg << " was parsed as:\n" << doc << "\n";
-            for(auto node = doc.begin(); node != doc.end(); ++node) config[node->first] = node->second;
+            path = value;
+            path += "yaml/";
           }
-          //else if //TODO: Try configuration directory
-          else std::cerr << "Could not parse file named " << arg << " as a YAML configuration file.\n";
-        }*/
+          input.open(path+arg);
+        }
+        if(!input) //Assume that file doesn't exist
+        {
+          std::cerr << "Failed to find configuration file named " << arg << "\n";
+          return 8;
+        }
+
+        configFiles.append(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
       }
       else if(arg.find(".root") != std::string::npos) inFiles.push_back(arg);
       else 

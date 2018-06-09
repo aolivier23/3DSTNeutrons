@@ -1,1 +1,2 @@
-install(FILES BetaVsEDep.root DESTINATION conf)
+add_subdirectory(hists)
+add_subdirectory(yaml)

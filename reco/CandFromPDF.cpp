@@ -7,6 +7,7 @@
 #include "app/Factory.cpp"
 #include "reco/CandFromPDF.h"
 #include "reco/alg/GeoFunc.h"
+#include "Base/exception.h"
 
 //ROOT includes
 #include "TGeoMatrix.h"
@@ -68,12 +69,25 @@ namespace reco
   {
     config.Output->Branch("CandFromPDF", &fCands);
 
-    //TODO: Throw exception if file or histogram doesn't exist
-    const auto fileName = config.Options["PDFFile"].as<std::string>(); //TODO: Check default path
-    auto pdfFile = TFile::Open(fileName.c_str());
-    if(!pdfFile) std::cerr << "Failed to find file " << fileName << "\n";
+    const auto fileName = config.Options["PDFFile"].as<std::string>(); 
+    auto pdfFile = TFile::Open(fileName.c_str()); //First, look up file by absolute or relative path
+    if(!pdfFile) 
+    {
+      //If look up failed, try configuration directory in 3DSTNeutrons
+      std::string path = "";
+      const auto value = getenv("THREEDSTNEUTRONS_CONF_PATH");
+      if(value != nullptr) path = value;
+      pdfFile = TFile::Open((path+fileName).c_str());
+    }
+    if(!pdfFile)
+    {
+      throw util::exception("File not found") << "Failed to find PDF template file named " << fileName << " for CandFromPDF.\n";
+    }
+
     auto hist = (TH2D*)(pdfFile->Get("BetaVsEDep"));
-    if(!hist) std::cerr << "Failed to find histogram named BetaVsEDep in file " << fileName << "\n";
+    if(!hist) throw util::exception("Histogram not found") << "Given file named " << fileName << " for template histogram, but could not "
+                                                           << "find histogram named BetaVsEDep in this file for CandFromPDF.\n";
+
     fBetaVsEDep.reset((TH2D*)(hist->Clone()));
     if(fBetaVsEDep->Integral() > 1.0) fBetaVsEDep->Scale(1./fBetaVsEDep->Integral()); //Normalize PDF if it's not already normalized
     fPenaltyTerm = 8.5/fBetaVsEDep->GetEntries(); //2.e-20/fBetaVsEDep->GetNbinsX()/fBetaVsEDep->GetNbinsY(); //1./fBetaVsEDep->GetEntries();  

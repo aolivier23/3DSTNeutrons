@@ -1,0 +1,4 @@
+CandTOF: &CandTOFDefault
+  CandAlg: "CandFromPDF"
+  ClusterAlg: "MergedClusters"
+  TimeRes: 0.7 #ns

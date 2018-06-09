@@ -1,0 +1,4 @@
+CandFromPDF: &CandFromPDFDefault
+  ClusterAlg: "MergedClusters"
+  TimeRes: 0.7 #ns
+  PDFFile: "/home/aolivier/app/3DSTNeutrons/io-install/conf/BetaVsEDep.root"

@@ -42,14 +42,12 @@ endif()
 #add_definitions(-DINSTALL_CONFIG_DIR="${CMAKE_INSTALL_PREFIX}/conf/")
 
 #Write a setup script to set LD_LIBRARY_PATH based on the location of this script.
-file(WRITE "setup.sh" "export LD_LIBRARY_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../lib:\${LD_LIBRARY_PATH}\n\"")
-file(APPEND "setup.sh" "export EDEPNEUTRONS_CONF_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../conf/\"")
-#TODO: Handle absolute paths to bash script correctly by not adding pwd.
-#file(WRITE  "setup.sh" "BIN_DIR=`dirname \$BASH_SOURCE`\n")
-#file(APPEND "setup.sh" "if [[\$BIN_DIR != /*]]\n")
-#file(APPEND "setup.sh" "then BIN_DIR=`pwd`/\$BIN_DIR\n")
-#file(APPEND "setup.sh" "fi\n")
-#file(APPEND "setup.sh" "export LD_LIBRARY_PATH=`pwd`/`dirname $BASH_SOURCE`/../lib\n")
+file(WRITE  "setup.sh" "#Make sure 3DSTNeutrons finds plugin libraries at runtime\n")
+file(APPEND "setup.sh" "export LD_LIBRARY_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../lib:\${LD_LIBRARY_PATH}\"\n")
+file(APPEND "setup.sh" "#Tell 3DSTNeutrons where default configuration files are installed\n")
+file(APPEND "setup.sh" "export THREEDSTNEUTRONS_CONF_PATH=\"`pwd`/`dirname \$BASH_SOURCE`/../conf/\"\n") 
+file(APPEND "setups.sh" "#Make sure bash finds NeutronApp by default")
+file(APPEND "setup.sh" "export PATH=$PATH:\"`pwd`/`dirname \$BASH_SOURCE`/../bin\"") 
 install(FILES "setup.sh" DESTINATION bin)
 
 #Set up to build against ROOT

@@ -1,0 +1,7 @@
+GridNeutronHitsDefault:
+  &GridNeutronHitsDefault
+  CubeSize: 10. #cm
+  AfterBirks: true
+  TimeRes: 0.7 #ns
+  EMin: 1.5 #MeV
+  NeighborCut: 3 #cubes
