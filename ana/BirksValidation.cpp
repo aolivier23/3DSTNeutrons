@@ -52,24 +52,45 @@ namespace ana
     {
       for(const auto& seg: det.second)
       { 
-        if(seg.EnergyDeposit >= fEMin)
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const float primDep = seg.GetEnergyDeposit();
+        #else
+        const float primDep = seg.EnergyDeposit;
+        #endif
+        if(primDep >= fEMin)
         {
+          #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+          const double dE = seg.GetEnergyDeposit();
+          const double dx = (seg.GetStop()-seg.GetStart()).Vect().Mag();
+          const double parent = seg.GetPrimaryId();
+          const double deposit = seg.GetSecondaryDeposit();
+          #else
           const double dE = seg.EnergyDeposit;
           const double dx = (seg.Stop-seg.Start).Vect().Mag();
-          fVisFracVersusdEdx->Fill(dE/dx, seg.SecondaryDeposit/dE);
-          const double corrected = dE/(1.+dE/dx*0.126); //TODO: Set Birks' constant for other materials
-          fBirksResidual->Fill((corrected-seg.SecondaryDeposit)/seg.SecondaryDeposit); 
+          const double parent = seg.PrimaryId;
+          const double deposit = seg.SecondaryDeposit;
+          #endif
 
-          auto found = fPlotsPerParticle.find(parts[seg.PrimaryId].Name);
+          fVisFracVersusdEdx->Fill(dE/dx, deposit/dE);
+          const double corrected = dE/(1.+dE/dx*0.126); //TODO: Set Birks' constant for other materials
+          fBirksResidual->Fill((corrected-deposit)/deposit); 
+
+          #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+          const std::string parentName(parts[parent].GetName());
+          #else
+          const std::string parentName = parts[parent].Name;
+          #endif
+
+          auto found = fPlotsPerParticle.find(parentName);
           if(found != fPlotsPerParticle.end())
           {
-            found->second.first->Fill(dE/dx, seg.SecondaryDeposit/dE);
-            found->second.second->Fill((corrected-seg.SecondaryDeposit)/seg.SecondaryDeposit);
+            found->second.first->Fill(dE/dx, deposit/dE);
+            found->second.second->Fill((corrected-deposit)/deposit);
           }
         }
       }
     } 
   }
 
-  REGISTER_PLUGIN(BirksValidation, plgn::Analyzer);
+  REGISTER_PLUGIN(BirksValidation, plgn::Analyzer)
 }

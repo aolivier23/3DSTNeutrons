@@ -62,29 +62,53 @@ namespace ana
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112) //&& part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const int pdg = part.GetPDGCode();
+        const int trackId = part.GetTrackId();
+        #else
+        const int pdg = part.PDGCode;
+        const int trackId = part.TrackId;
+        #endif
+
+        if(pdg == 2112) //&& part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
         {
           std::set<int> descend;
-          truth::Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
-          descend.insert(part.TrackId);
-          for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId; 
+          truth::Descendants(trackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
+          descend.insert(trackId);
+          for(const auto& id: descend) TrackIDsToFS[id] = trackId; 
         }
       }
     }
 
     for(const auto& vert: fEvent->Primaries)
     {
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      auto vertPos = vert.GetPosition();
+      #else
       auto vertPos = vert.Position;
+      #endif
 
       //Require that this is a CC interaction.  I want to avoid the problem of NC vertex reconstruction for now since it may not be 
       //possible in many cases. 
-      if(std::find_if(vert.Particles.begin(), vert.Particles.end(), [](const auto& part) { return part.PDGCode == 13 || part.PDGCode == -13 
-                                                                                                  || part.PDGCode == 12 || part.PDGCode == -13; })
+      if(std::find_if(vert.Particles.begin(), vert.Particles.end(), [](const auto& part) 
+                                                                    { 
+                                                                      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                                                      const int pdg = part.GetPDGCode();
+                                                                      #else
+                                                                      const int pdg = part.PDGCode;
+                                                                      #endif
+
+                                                                      return pdg == 13 || pdg == -13 || pdg == 12 || pdg == -13; 
+                                                                    })
          == vert.Particles.end()) continue; //TODO: Find a way to do this that doesn't use continue
 
       for(const auto& part: vert.Particles)
       {
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        if(strcmp(part.GetName(), "neutron"))
+        #else
         if(part.Name == "neutron")
+        #endif
         {
           //Find the closest hit to vert for this neutron
           auto closest = fHits.end();
@@ -92,7 +116,14 @@ namespace ana
           {
             auto& hit = *iter;
             if(std::find_if(hit.TrackIDs.begin(), hit.TrackIDs.end(), 
-                            [&TrackIDsToFS, &part](const int id) { return TrackIDsToFS[id] == part.TrackId; }) 
+                            [&TrackIDsToFS, &part](const int id) 
+                            {
+                              #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS 
+                              return TrackIDsToFS[id] == part.GetTrackId(); 
+                              #else
+                              return TrackIDsToFS[id] == part.TrackId;
+                              #endif
+                            }) 
                != hit.TrackIDs.end())
             {
               if(closest == fHits.end()) closest = iter;
@@ -103,9 +134,9 @@ namespace ana
           //If I found a first hit for this FS neutron
           if(closest != fHits.end())
           {
-            const auto diff = ((*closest).Position - vert.Position); 
+            const auto diff = ((*closest).Position - vertPos); 
             const auto smear = fGaus(fGen);
-            const double deltaT = diff.T() - (vert.Position.T()+smear); //Smear vertex time values since I'm using the true vertex for now
+            const double deltaT = diff.T() - (vertPos.T()+smear); //Smear vertex time values since I'm using the true vertex for now
             const double dist = diff.Vect().Mag(); //Distance is already smeared by virtue of the geometry I am using for hit-making
             fNeutronHitTime->Fill(deltaT);
             fNeutronTimeVersusDist->Fill(dist, deltaT);
@@ -121,24 +152,31 @@ namespace ana
               const double timeUncert = fTimeRes/deltaT; //relative uncertainty in time for this energy "measurement"
               const double betaUncert = beta*std::sqrt(distUncert*distUncert+timeUncert*timeUncert); //Uncertainty in beta
               fBetaRes->Fill((1-beta)/betaUncert); //By how many sigmas is beta different from 1?
-              const double trueGamma = part.Momentum.E()/part.Momentum.Mag();
+
+              #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+              const auto& partMom = part.GetMomentum();
+              #else
+              const auto& partMom = part.Momentum;
+              #endif              
+
+              const double trueGamma = partMom.E()/partMom.Mag();
               fTrueBeta->Fill(std::sqrt(1.-1./trueGamma/trueGamma));
               fNeutronTOFEnergy->Fill(energy-mass); //TODO: Error bars
 
-              const auto trueE = part.Momentum.E();
+              const auto trueE = partMom.E();
               fNeutronEResidual->Fill((energy - trueE)/trueE);
-              fFSNeutronEnergy->Fill(trueE-part.Momentum.Mag()); //Fill with kinetic energy
+              fFSNeutronEnergy->Fill(trueE-partMom.Mag()); //Fill with kinetic energy
 
               if(beta < 0.02) 
               {
                 std::cout << "Beta is < 0.02: " << beta << ".  Distance is " << dist
                           << "\nTime difference is " << deltaT << "\n"
-                          << "Interaction time is " << vert.Position.T() << "\n"
+                          << "Interaction time is " << vertPos.T() << "\n"
                           << "Closest hit time is " << (*closest).Position.T() << "\n"
                           << "Smeared vertex time by " << smear << "\n"
                           << "closest->Position is (" << (*closest).Position.X() << ", " << (*closest).Position.Y() << ", " 
                           << (*closest).Position.Z() << ")\n"
-                          << "Vertex is (" << vert.Position.X() << ", " << vert.Position.Y() << ", " << vert.Position.Z() << ")\n"
+                          << "Vertex is (" << vertPos.X() << ", " << vertPos.Y() << ", " << vertPos.Z() << ")\n"
                           << "EventID is " << fEvent->EventId << "\n";
               }
 
@@ -150,5 +188,5 @@ namespace ana
     } //For each primary vertex
   }
 
-  REGISTER_PLUGIN(NeutronTOF, plgn::Analyzer);
+  REGISTER_PLUGIN(NeutronTOF, plgn::Analyzer)
 }

@@ -80,12 +80,22 @@ namespace ana
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const int pdg = part.GetPDGCode();
+        const double KE = part.GetMomentum().E() - part.GetMomentum().Mag();
+        const int trackId = part.GetTrackId();
+        #else
+        const int pdg = part.PDGCode;
+        const double KE = part.Momentum.E() - part.Momentum.Mag();
+        const int trackId = part.TrackId;
+        #endif
+
+        if(pdg == 2112 && KE > fMinEnergy)
         {
           std::set<int> descend;
-          truth::Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
-          descend.insert(part.TrackId);
-          for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId; 
+          truth::Descendants(trackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
+          descend.insert(trackId);
+          for(const auto& id: descend) TrackIDsToFS[id] = trackId; 
         }
       }
     }
@@ -105,8 +115,13 @@ namespace ana
                                                                 {
                                                                   const auto& firstTraj = trajs[first];
                                                                   const auto& secondTraj = trajs[second];
-                                                                  return (firstTraj.InitialMomentum.E() - firstTraj.InitialMomentum.Mag()) 
+                                                                  #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                                                  return (firstTraj.GetInitialMomentum().E() - firstTraj.GetInitialMomentum().Mag()) 
+                                                                         < (secondTraj.GetInitialMomentum().E() - secondTraj.GetInitialMomentum().Mag());
+                                                                  #else
+                                                                  return (firstTraj.InitialMomentum.E() - firstTraj.InitialMomentum.Mag())
                                                                          < (secondTraj.InitialMomentum.E() - secondTraj.InitialMomentum.Mag());
+                                                                  #endif
                                                                 });
 
       //TODO: Restate this problem.  I think I really want to plot KE for neutrons whose first clusters are not the first cluster in a candidate.
@@ -126,13 +141,20 @@ namespace ana
       {
         FSToCands[neutronID].push_back(cand);
         const auto& neutron = trajs[neutronID];
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto& neutronInitMom = neutron.GetInitialMomentum();
+        const auto& neutronFirstPos = neutron.Points[0].GetPosition();
+        #else
+        const auto& neutronInitMom = neutron.InitialMomentum;
+        const auto& neutronFirstPos = neutron.Points[0].Position;
+        #endif
 
-        sumCauseE += neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag();
+        sumCauseE += neutronInitMom.E() - neutronInitMom.Mag();
 
         //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
-        const auto candVec = (cand.Start-neutron.Points[0].Position).Vect();
+        const auto candVec = (cand.Start-neutronFirstPos).Vect();
 
-        const double angle = std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit()))*180./3.1415926535897932384626433832;
+        const double angle = std::acos(candVec.Unit().Dot(neutronInitMom.Vect().Unit()))*180./3.1415926535897932384626433832;
         fCandAngleWRTCause->Fill(angle);
         fAngleVsDistFromVtx->Fill(candVec.Mag(), angle);
 
@@ -140,16 +162,35 @@ namespace ana
       fCauseEnergyVsCandEnergy->Fill(cand.DepositedEnergy, sumCauseE); //Candidate energy might sometimes be slightly larger than sum of FS 
     }
 
-    for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag());
+    for(const auto& pair: FSToCands) 
+    {
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      const double KE = trajs[pair.first].GetInitialMomentum().E()-trajs[pair.first].GetInitialMomentum().Mag();
+      #else
+      const double KE = trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag();
+      #endif 
+
+      fFSNeutronEnergy->Fill(KE);
+    }
 
     const double trueVisNeutronKE = std::accumulate(FSToCands.begin(), FSToCands.end(), 0., [&trajs](auto sum, const auto& pair)
                                                    {
-                                                     return sum + trajs[pair.first].InitialMomentum.E() - 939.6;
+                                                     #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                                     const double initE = trajs[pair.first].GetInitialMomentum().E();
+                                                     #else
+                                                     const double initE = trajs[pair.first].InitialMomentum.E();
+                                                     #endif
+                                                     return sum + initE - 939.6;
                                                    });
 
      const double trueVisNeutronE = std::accumulate(FSToCands.begin(), FSToCands.end(), 0., [&trajs](auto sum, const auto& pair)
                                                    {
-                                                     return sum + trajs[pair.first].InitialMomentum.E();
+                                                     #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                                     const double initE = trajs[pair.first].GetInitialMomentum().E();
+                                                     #else
+                                                     const double initE = trajs[pair.first].InitialMomentum.E();
+                                                     #endif
+                                                     return sum + initE;
                                                    });
 
     const double totalCandKE = std::accumulate(fCands.begin(), fCands.end(), 0., [](auto sum, const auto& cand) { return sum + cand.TOFEnergy - 939.6; });
@@ -163,7 +204,14 @@ namespace ana
     //Now, look for all of the candidates for each FS neutron.  
     for(const auto& FS: FSToCands) 
     {
-      const auto FSPos = trajs[FS.first].Points[0].Position;
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      const auto& FSPos = trajs[FS.first].Points[0].GetPosition(); 
+      const double FSKE = trajs[FS.first].GetInitialMomentum().E()-trajs[FS.first].GetInitialMomentum().Mag();
+      #else
+      const auto& FSPos = trajs[FS.first].Points[0].Position;
+      const double FSKE = trajs[FS.first].InitialMomentum.E()-trajs[FS.first].InitialMomentum.Mag();
+      #endif
+
       const auto& closest = std::min_element(FS.second.begin(), FS.second.end(), [&FSPos](const auto& first, const auto& second)
                                                                                  { 
                                                                                    return   (first.Start-FSPos).Vect().Mag2() 
@@ -172,9 +220,9 @@ namespace ana
       fDistFromVtx->Fill((closest->Start-FSPos).Vect().Mag());
       fCandPerNeutron->Fill(FS.second.size());
       if(FS.second.size() > 5) std::cout << "Many-candidate event (" << FS.second.size() << " candidates): " << fEvent->EventId << "\n";
-      fCandPerNeutronVsNeutronKE->Fill(trajs[FS.first].InitialMomentum.E()-trajs[FS.first].InitialMomentum.Mag(), FS.second.size());
+      fCandPerNeutronVsNeutronKE->Fill(FSKE, FS.second.size());
     }
   }
 
-  REGISTER_PLUGIN(CandRecoStats, plgn::Analyzer);
+  REGISTER_PLUGIN(CandRecoStats, plgn::Analyzer)
 }

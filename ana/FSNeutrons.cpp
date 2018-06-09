@@ -35,9 +35,17 @@ namespace ana
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fEMin) 
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const double KE = part.GetMomentum().E() - part.GetMomentum().Mag();
+        const int pdg = part.GetPDGCode();
+        #else
+        const double KE = part.Momentum.E() - part.Momentum.Mag();
+        const int pdg = part.PDGCode;
+        #endif
+
+        if(pdg == 2112 && KE > fEMin) 
         {
-          fNeutronEnergy->Fill(part.Momentum.E() - part.Momentum.Mag());
+          fNeutronEnergy->Fill(KE);
           ++nFSNeutrons;
         }
       }

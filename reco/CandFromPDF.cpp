@@ -84,8 +84,8 @@ namespace reco
     fCands.clear(); //Clear out the old clusters from last time!
 
     const auto& vertex = fEvent->Primaries; //TODO: What to do when there are multiple vertices?  
-    
-	#ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+   
+    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
     const auto& vertPos = vertex.front().GetPosition();
     #else
     const auto& vertPos = vertex.front().Position;

@@ -70,12 +70,20 @@ namespace ana
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112) //&& part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const int pdg = part.GetPDGCode();
+        const int trackId = part.GetTrackId();
+        #else
+        const int pdg = part.PDGCode;
+        const int trackId = part.TrackId;
+        #endif
+
+        if(pdg == 2112) //&& part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
         {
           std::set<int> descend;
-          truth::Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
-          descend.insert(part.TrackId);
-          for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId; 
+          truth::Descendants(trackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
+          descend.insert(trackId);
+          for(const auto& id: descend) TrackIDsToFS[id] = trackId; 
         }
       }
     }
@@ -83,13 +91,25 @@ namespace ana
     //for(const auto& vert: fEvent->Primaries)
     const auto& vert = fEvent->Primaries.front(); //TODO: Associate NeutronCands with vertices?
     {
-      auto vertPos = vert.Position;
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      const auto& vertPos = vert.GetPosition();
+      #else
+      const auto& vertPos = vert.Position;
+      #endif
 
       //Require that this is a CC interaction.  I want to avoid the problem of NC vertex reconstruction for now since it may not be 
       //possible in many cases. 
-      if(std::find_if(vert.Particles.begin(), vert.Particles.end(), [](const auto& part) { return part.PDGCode == 13 || part.PDGCode == -13 
-                                                                                                  || part.PDGCode == 12 || part.PDGCode == -13; })
-         != vert.Particles.end()); 
+      if(std::find_if(vert.Particles.begin(), vert.Particles.end(), [](const auto& part) 
+                                                                    { 
+                                                                      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                                                      const int pdg = part.GetPDGCode();
+                                                                      #else
+                                                                      const int pdg = part.PDGCode;
+                                                                      #endif
+
+                                                                      return pdg == 13 || pdg == -13 || pdg == 12 || pdg == -13; 
+                                                                    })
+         != vert.Particles.end())
       {
   
         //Since I'm not reconstructing neutrino vertices yet, smear the vertex time by timing resolution
@@ -99,7 +119,7 @@ namespace ana
   
         for(const auto& cand: fCands)
         {
-          const auto diff = cand.Start - vert.Position;
+          const auto diff = cand.Start - vertPos;
           const double deltaT = diff.T() - smear; //Smear vertex time values since I'm using the true vertex for now
           const double dist = diff.Vect().Mag(); //Distance is already smeared by virtue of the geometry I am using for hit-making
           fNeutronHitTime->Fill(deltaT);
@@ -114,11 +134,22 @@ namespace ana
             for(auto trackID = cand.TrackIDs.begin(); trackID != cand.TrackIDs.end(); ++trackID)
             {
               const auto& traj = trajs[*trackID];
+
+              #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+              if(strcmp(traj.GetName(), "neutron") && traj.GetInitialMomentum().E() > highestE) highestID = trackID;
+              #else
               if(traj.Name == "neutron" && traj.InitialMomentum.E() > highestE) highestID = trackID;
+              #endif
             }
 
             const auto& part = *(std::find_if(vert.Particles.begin(), vert.Particles.end(), [&highestID](const auto& part) 
-                                                                                            { return part.TrackId == *highestID; }));
+                                                                                            {
+                                                                                              #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS 
+                                                                                              return part.GetTrackId() == *highestID; 
+                                                                                              #else
+                                                                                              return part.TrackId == *highestID;
+                                                                                              #endif
+                                                                                            }));
 
             const float c = 299.792; //Speed of light = 300 mm/ns
             const auto beta = dist/deltaT/c; 
@@ -130,23 +161,34 @@ namespace ana
             const double timeUncert = fTimeRes/deltaT; //relative uncertainty in time for this energy "measurement"
             const double betaUncert = beta*std::sqrt(distUncert*distUncert+timeUncert*timeUncert); //Uncertainty in beta
             fBetaRes->Fill((1-beta)/betaUncert); //By how many sigmas is beta different from 1?
+
+            #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+            const double trueGamma = part.GetMomentum().E()/part.GetMomentum().Mag();
+            #else
             const double trueGamma = part.Momentum.E()/part.Momentum.Mag();
+            #endif
+
             fTrueBeta->Fill(std::sqrt(1.-1./trueGamma/trueGamma));
             fCandTOFEnergy->Fill(energy-mass); //TODO: Error bars
 
+            #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+            const auto trueE = part.GetMomentum().E();
+            #else
             const auto trueE = part.Momentum.E();
+            #endif
+
             fNeutronEResidual->Fill((energy - trueE)/trueE);
   
             if(beta < 0.02)
             {
               std::cout << "Beta is < 0.02: " << beta << ".  Distance is " << dist
                         << "\nTime difference is " << deltaT << "\n"
-                        << "Interaction time is " << vert.Position.T() << "\n"
+                        << "Interaction time is " << vertPos.T() << "\n"
                         << "Closest hit time is " << cand.Start.T() << "\n"
                         << "Smeared vertex time by " << smear << "\n"
                         << "closest->Position is (" << cand.Start.X() << ", " << cand.Start.Y() << ", " 
                         << cand.Start.Z() << ")\n"
-                        << "Vertex is (" << vert.Position.X() << ", " << vert.Position.Y() << ", " << vert.Position.Z() << ")\n"
+                        << "Vertex is (" << vertPos.X() << ", " << vertPos.Y() << ", " << vertPos.Z() << ")\n"
                         << "EventID is " << fEvent->EventId << "\n";
             }
   
@@ -155,9 +197,16 @@ namespace ana
         } //For each NeutronCand in this event
         const double totalTrueE = std::accumulate(vert.Particles.begin(), vert.Particles.end(), 0., [](const auto sum, const auto& part)
                                                                                                     { 
+                                                                                                      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+                                                                                                      if(!strcmp(part.GetName(), "neutron")) 
+                                                                                                      return sum;
+                                                                                                      return sum + part.GetMomentum().E() - 
+                                                                                                             part.GetMomentum().Mag();
+                                                                                                      #else
                                                                                                       if(part.Name != "neutron") return sum;
-                                                                                                      return sum + part.Momentum.E() - 
-                                                                                                             part.Momentum.Mag();
+                                                                                                      return sum + part.Momentum.E() -
+                                                                                                             part.Momentum.Mag(); 
+                                                                                                      #endif
                                                                                                     });
   
         fTotalEResidual->Fill((totalTOFE-totalTrueE)/totalTrueE);
@@ -165,5 +214,5 @@ namespace ana
     } //For each primary vertex
   }
 
-  REGISTER_PLUGIN(CandTOF, plgn::Analyzer);
+  REGISTER_PLUGIN(CandTOF, plgn::Analyzer)
 }

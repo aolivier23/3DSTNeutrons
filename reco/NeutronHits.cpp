@@ -149,7 +149,7 @@ namespace reco
               hit.Position = TLorentzVector(global.X(), global.Y(), global.Z(), 0.);
               hit.Width = fWidth;
 
-              size_t nContrib; //The number of segements that contributed to this hit
+              size_t nContrib = 0; //The number of segements that contributed to this hit
               neutSegs.remove_if([&hit, &hitBox, &boxCenter, mat, &nContrib](auto& seg)
                                  {
                                    #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS

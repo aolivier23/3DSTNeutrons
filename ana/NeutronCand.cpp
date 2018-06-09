@@ -94,12 +94,22 @@ namespace ana
     {
       for(const auto& part: vertex.Particles)
       {
-        if(part.PDGCode == 2112 && part.Momentum.E() - part.Momentum.Mag() > fMinEnergy)
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const double KE = part.GetMomentum().E() - part.GetMomentum().Mag();
+        const int pdg = part.GetPDGCode();
+        const int trackId = part.GetTrackId();
+        #else
+        const double KE = part.Momentum.E() - part.Momentum.Mag();
+        const int pdg = part.PDGCode;
+        const int trackId = part.TrackId;
+        #endif
+
+        if(pdg == 2112 && KE > fMinEnergy)
         {
           std::set<int> descend;
-          truth::Descendants(part.TrackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
-          descend.insert(part.TrackId);
-          for(const auto& id: descend) TrackIDsToFS[id] = part.TrackId; 
+          truth::Descendants(trackId, trajs, descend); //Fill descend with the TrackIDs of part's descendants
+          descend.insert(trackId);
+          for(const auto& id: descend) TrackIDsToFS[id] = trackId; 
         }
       }
     }
@@ -121,17 +131,20 @@ namespace ana
         FSToCands[neutronID].push_back(cand);
         const auto& neutron = trajs[neutronID];
 
-        sumCauseE += neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag();
-        //fCauseEnergyVsCandEnergy->Fill(cand.Energy, neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag());
-        /*if(cand.Energy > neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag())
-          std::cout << "Candidate energy, " << cand.Energy << ", is > cause energy: " 
-                    << neutron.InitialMomentum.E() - neutron.InitialMomentum.Mag() << ".  This candidate has " 
-                    << FSIds.size() << " unique causes.\n";*/ //These are multi-cause events!
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        const auto& initMom = neutron.GetInitialMomentum();
+        const auto& firstPointPos = neutron.Points[0].GetPosition();
+        #else
+        const auto& initMom = neutron.InitialMomentum;
+        const auto& firstPointPos = neutron.Points[0].Position;
+        #endif
+
+        sumCauseE += initMom.E() - initMom.Mag();
 
         //Figure out the angle of the candidate w.r.t. the FS neutron's initial momentum
-        const auto candVec = (cand.Position-neutron.Points[0].Position).Vect();
+        const auto candVec = (cand.Position-firstPointPos).Vect();
 
-        const double angle = std::acos(candVec.Unit().Dot(neutron.InitialMomentum.Vect().Unit()))*180./3.1415926535897932384626433832;
+        const double angle = std::acos(candVec.Unit().Dot(initMom.Vect().Unit()))*180./3.1415926535897932384626433832;
         fCandAngleWRTCause->Fill(angle);
         fAngleVsDistFromVtx->Fill(candVec.Mag(), angle);
 
@@ -139,12 +152,25 @@ namespace ana
       fCauseEnergyVsCandEnergy->Fill(cand.Energy, sumCauseE); //Candidate energy might sometimes be slightly larger than sum of FS 
     }
 
-    for(const auto& pair: FSToCands) fFSNeutronEnergy->Fill(trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag());
+    for(const auto& pair: FSToCands) 
+    {
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      const double KE = trajs[pair.first].GetInitialMomentum().E()-trajs[pair.first].GetInitialMomentum().Mag();
+      #else
+      const double KE = trajs[pair.first].InitialMomentum.E()-trajs[pair.first].InitialMomentum.Mag();
+      #endif
+
+      fFSNeutronEnergy->Fill(KE);
+    }
 
     //Now, look for all of the candidates for each FS neutron.  
     for(auto& FS: FSToCands) 
     {
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      const auto FSPos = trajs[FS.first].Points[0].GetPosition();
+      #else
       const auto FSPos = trajs[FS.first].Points[0].Position;
+      #endif
 
       //Sort candidates first according to time, then according to distance from vertex to within time resolution
       auto& clusters = FS.second;
@@ -183,7 +209,11 @@ namespace ana
         fELeft = eDepTotal-sumE;
         fDistFromPrev = (prevPos - clusters[pos].Position).Vect().Mag();
         fDeltaT = (clusters[pos].Position - prevPos).T();
+        #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+        fTrueE = trajs[FS.first].GetInitialMomentum().E();
+        #else
         fTrueE = trajs[FS.first].InitialMomentum.E();
+        #endif
         fLikelihoodTree->Fill();
 
         prevPrevPos = prevPos;
@@ -198,9 +228,14 @@ namespace ana
       fDistFromVtx->Fill((closest->Position-FSPos).Vect().Mag());
       fCandPerNeutron->Fill(FS.second.size());
       if(FS.second.size() > 5) std::cout << "Many-candidate event (" << FS.second.size() << " candidates): " << fEvent->EventId << "\n";
+      
+      #ifdef EDEPSIM_FORCE_PRIVATE_FIELDS
+      fCandPerNeutronVsNeutronKE->Fill(trajs[FS.first].GetInitialMomentum().E()-trajs[FS.first].GetInitialMomentum().Mag(), FS.second.size());
+      #else
       fCandPerNeutronVsNeutronKE->Fill(trajs[FS.first].InitialMomentum.E()-trajs[FS.first].InitialMomentum.Mag(), FS.second.size());
+      #endif
     }
   }
 
-  REGISTER_PLUGIN(NeutronCand, plgn::Analyzer);
+  REGISTER_PLUGIN(NeutronCand, plgn::Analyzer)
 }

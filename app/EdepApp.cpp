@@ -80,8 +80,8 @@ int main(int argc, const char** argv)
         for(const auto& doc: docs) 
         {
           if(!doc.IsNull()) config[arg].push_back(doc);
-          else if //TODO: Try configuration directory
-          else std::cerr << "Could not find 
+          //else if //TODO: Try configuration directory
+          else std::cerr << "Could not parse file named " << arg << " as a YAML configuration file.\n";
         }
       }
       else if(arg.find(".root") != std::string::npos) inFiles.push_back(arg);
@@ -162,10 +162,6 @@ int main(int argc, const char** argv)
 
       outTree = inTree->CloneTree(0);
       outTree->SetDirectory(outFile);
-
-      plgn::Reconstructor::Config recoConfig;
-      recoConfig.Input = &inReader;
-      recoConfig.Output = outTree;
 
       const auto& recos = config["reco"]["algs"];
       auto& recoFactory = plgn::Factory<plgn::Reconstructor>::instance();

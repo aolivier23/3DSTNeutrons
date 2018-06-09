@@ -52,11 +52,6 @@ file(APPEND "setup.sh" "export EDEPNEUTRONS_CONF_PATH=\"`pwd`/`dirname \$BASH_SO
 #file(APPEND "setup.sh" "export LD_LIBRARY_PATH=`pwd`/`dirname $BASH_SOURCE`/../lib\n")
 install(FILES "setup.sh" DESTINATION bin)
 
-#Set up components that used to live in util
-add_subdirectory(Base)
-add_subdirectory(ROOT)
-add_subdirectory(IO)
-
 #Set up to build against ROOT
 #I learned how to do this here: https://root.cern.ch/how/integrate-root-my-project-cmake
 list( APPEND CMAKE_PREFIX_PATH $ENV{ROOT_SYS})
@@ -69,6 +64,11 @@ find_package( yaml-cpp REQUIRED )
 #Make sure that all project files know about all other project files by their 
 #path from this directory.
 include_directories( "${PROJECT_SOURCE_DIR}" )
+
+#Set up components that used to live in util
+add_subdirectory(Base)
+add_subdirectory(ROOT)
+add_subdirectory(IO)
 
 add_subdirectory(persistency)
 add_subdirectory(alg)
