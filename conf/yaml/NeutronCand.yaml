@@ -1,0 +1,5 @@
+NeutronCand: &NeutronCandDefault
+  #The name of the branch of pers::MClusters to analyze.  Usually the name of the cluster-making algorithm.
+  ClusterAlg: "MergedClusters"
+  #Minimum energy for a FS neutron to be plotted.  Should match hit-making and cluster-making algorithms.
+  EMin: 1.5

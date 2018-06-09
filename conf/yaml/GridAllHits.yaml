@@ -1,11 +1,11 @@
-GridNeutronHitsDefault: &GridNeutronHitsDefault
+GridAllHits: &GridAllHitsDefault
+  #In GridNeutronHits, minimum energy for a hit to be visible.
+  EMin: 1.5 #MeV
   #In GridNeutronHits, size of cube-shaped subdetectors that will become hits.
   CubeSize: 10. #cm
+  #Cut that requires no nearby energy deposits.
+  NeighborCut: 2 #cubes
   #Use secondary energy deposit which can be calculated after applying Birks' Law.
   AfterBirks: false
   #Time resolution of 3DST in ns.  Used to smear times of hits.
   TimeRes: 0.7 #ns
-  #In GridNeutronHits, minimum energy for a hit to be visible.
-  EMin: 1.5 #MeV
-  #Cut that requires no nearby energy deposits.
-  NeighborCut: 2 #cubes

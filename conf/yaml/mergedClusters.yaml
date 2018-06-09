@@ -1,3 +1,0 @@
-MergedClusters: &MergedClustersDefault
-  HitAlg: GridNeutronHits
-  MergeDist: 3 

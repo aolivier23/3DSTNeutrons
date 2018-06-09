@@ -1,0 +1,5 @@
+CandRecoStats: &CandRecoStatsDefault
+  #Name of the branch of pers::NeutronCands to analyze.  Usually the name of the candidate-making algorithm.
+  CandAlg: "CandFromTOF"
+  #Minimum energy for a FS neutron to be plotted.  Should match hit-making and cluster-making algorithms.
+  EMin: 1.5

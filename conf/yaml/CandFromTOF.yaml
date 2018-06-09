@@ -1,8 +1,5 @@
-CandFromPDF: &CandFromPDFDefault
+CandFromTOF: &CandFromTOFDefault
   #Name of the branch from which to read pers::MCClusters.  Usually also the name of the cluster-making algorithm.
   ClusterAlg: "MergedClusters"
   #Toy timing resolution of a 3DST in ns.  Used for binning and smearing hit times in the NeutronTOF algorithm.
   TimeRes: 0.7 #ns
-  #Name of a .root file with a TH2D named BetaVsEDep.  Histogram will be used as a Probability Density Function to 
-  #distnguish clusters from different FS neutrons.
-  PDFFile: "/home/aolivier/app/3DSTNeutrons/io-install/conf/BetaVsEDep.root"

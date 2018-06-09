@@ -1,0 +1,3 @@
+FSNeutrons: &FSNeutronsDefault
+  #Minimum energy for a neutron candidate to be plotted.  Should match hit-making and cluster-making algorithms
+  EMin: 1.5

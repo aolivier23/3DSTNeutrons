@@ -1,0 +1,5 @@
+MergedClusters: &MergedClustersDefault
+  #Name of the branch from which to read pers::MCHits.  Usually also the name of the hit-making algorithm.
+  HitAlg: "GridNeutronHits"
+  #Number of empty cubes over which clusters can \"jump\".  A value of 0 results in clusters of directly adjacent hits only.
+  MergeDist: 0 

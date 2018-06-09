@@ -1,0 +1,27 @@
+#An example YAML configuration file for 3DSTNeutrons.  After sourcing 3DSTNeutrons' setup.sh, run as:
+#
+#NeutronApp GridNeutronHits.yaml example.yaml
+#
+#GridNeutronHits provides the default configuration for the GridNeutronHits plugin.  NeutronApp should be smart 
+#enough to use the environment variables set in setup.sh to find GridNeutronHits.yaml and this file.  
+
+#The app block defines I/O settings 
+app:
+  source:
+    files: 
+      - "edep_new_edepsim_0.root" #Process this file from the current directory in addition to any .root files 
+                                  #specified on the command line.  All of the files in this list should be .root 
+                                  #files produced by edep-sim.  
+    NEvents: 10 #Stop after 10 events
+reco:
+  OutputName: "gridNeutronHits.root" #NeutronApp will write a ROOT file with this name that contains the objects 
+                                     #created by all Reconstructors listed under algs as well as anything in the 
+                                     #input file.
+  algs:
+    GridNeutronHits: *GridNeutronHitsDefault #Look for a YAML anchor named GridNeutronHitsDefault and use that to configure the 
+                                             #GridNeutronHits algorithm.  The default tag is in the file GridNeutronHits.yaml 
+                                             #included with 3DSTNeutrons. 
+#The analysis block works similarly to the reco block.   
+#analysis:
+#  style: "standard"
+#  algs:

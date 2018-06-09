@@ -1,0 +1,6 @@
+BirksValidation: &BirksValidationDefault
+  #Minimum energy of deposits plotted by BirksValiation Analyzer.  Useful for plot formatting.  
+  EMin: 0. #Mev
+  #Energy deposits for particles with this name will be plotted on their own as well
+  #as with all other particle types.
+  Particle: ""

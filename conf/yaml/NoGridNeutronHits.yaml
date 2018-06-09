@@ -1,0 +1,5 @@
+NoGridNeutronHits: &NoGridNeutronHitsDefault
+  #In GridNeutronHits, minimum energy for a hit to be visible.
+  EMin: 1.5 #MeV
+  #In GridNeutronHits, size of cube-shaped subdetectors that will become hits.
+  CubeSize: 100. #cm

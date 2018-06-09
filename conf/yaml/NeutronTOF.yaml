@@ -1,0 +1,5 @@
+NeutronTOF: &NeutronTOFDefault
+  #The name of the Reconstructor that produced pers::MCHits to analyze.  
+  HitAlg: "GridNeutronHits"
+  #Toy timing resolution of a 3DST in ns.  Used for binning and smearing hit times in the NeutronTOF algorithm.
+  TimeRes: 0.7 #ns
